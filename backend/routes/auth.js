@@ -9,7 +9,8 @@ const verificarToken = require('../middleware/auth');
 // 2. POST /api/auth/registro - Crear cuenta nueva
 router.post('/registro', async (req, res) => {
     try {
-        const { nombre, imagenPerfil, email, password, rol, estado, departamento, municipio, verificado, favoritos } = req.body;
+        const { nombre, email, password, rol, 
+            departamento, municipio, verificado } = req.body;
 
         // Verificar que el email no exista ya
         const existe = await Usuario.findOne({ email });
@@ -30,16 +31,34 @@ router.post('/registro', async (req, res) => {
             email,
             password: hash,
             rol,
-            estado,
             departamento,
             municipio,
             verificado,
-            favoritos
         });
 
+        // Crear el token JWT - dura 24 horas
+        const token = jwt.sign(
+            {
+                id: usuario._id,
+                email: usuario.email,
+                verificado: usuario.verificado,
+                rol: usuario.rol,
+                estado: usuario.estado
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: '24h'
+            }
+        );
+
         res.status(201).json({
-            mensaje: 'Usuario creado correctamente',
-            id: usuario._id
+            mensaje: 'Usuario creado e inicio de sesión con exito',
+            id: usuario._id,
+            token,
+            nombre: usuario.nombre,
+            rol: usuario.rol,
+            verificado: usuario.verificado
+
         });
 
     } catch (err) {
@@ -78,7 +97,8 @@ router.post('/login', async (req, res) => {
                 id: usuario._id,
                 email: usuario.email,
                 verificado: usuario.verificado,
-                rol: usuario.rol
+                rol: usuario.rol, 
+                estado: usuario.estado
             },
             process.env.JWT_SECRET,
             {

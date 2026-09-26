@@ -14,7 +14,7 @@ const inmuebleShema = new Schema({
 
     propietario: {
         type: Schema.Types.ObjectId,
-        ref: 'Usuario',
+        ref: 'Users',
         required: true
     }, 
     titulo: { type: String, required: true},
@@ -36,5 +36,5 @@ const inmuebleShema = new Schema({
 
 }, { timestamps : true});
 
-const Inmueble = model('Inmueble', inmuebleShema);
-module.exports = Inmueble;
+const Properties = model('Properties', inmuebleShema);
+module.exports = Properties;

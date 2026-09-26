@@ -5,7 +5,7 @@ const { Schema, model } = require('mongoose');
 const favoritoSchema = new Schema({ 
     inmueble: {
         type: Schema.Types.ObjectId,
-        ref : 'Inmueble',
+        ref : 'Properties',
         required: true
     }
 },{ timestamps: true})
@@ -26,10 +26,10 @@ const usuarioSchema = new Schema({
     departamento:     {type: String, required: true},
     municipio:        {type: String, required: true},
     verificado:       {type: Boolean, default: false},
-    favoritos: [favoritoShema]
+    favoritos: [favoritoSchema]
 
 }, { timestamps : true });
 
 // 4. Exportar el Model
-const Usuario = model('Usuario', usuarioSchema);
-module.exports = Usuario;
+const Users = model('Users', usuarioSchema);
+module.exports = Users;
