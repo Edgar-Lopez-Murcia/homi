@@ -8,9 +8,17 @@ const areasCasaShema = new Schema ({
     imagen3: { type: String}
 })
 
+const numeroZonasSchema = new Schema ({
+    nombreZona: {type: String, enum: ['Exterior','Cocina', 'Baño', 'habitacion', 'Cuarto de lavado', 
+        'Vestidor', 'Bodega', 'Sala de estar', 'Comedor', 'Cuarto de estudio', 'Piso',
+        'Patio interior', 'Terrrasa', 'otros'
+    ], required: true },
+    cantidad: {type: Number, required: true}
+})
+
 const inmuebleShema = new Schema({
 
-    id:   { type: Number, required: true},
+    codigoCorto:   { type: 'String', required: true},
 
     propietario: {
         type: Schema.Types.ObjectId,
@@ -23,7 +31,18 @@ const inmuebleShema = new Schema({
         enum: ['casa', 'apartamento', 'apartamento-estudio', 'habitacion', 'local'],
         required: true
     },
+
+    tipoAlquiler: {
+        type: String,
+        enum: ['Larga Estancia', 'Corta Estancia', 'Flexible'],
+        required: true,
+        default: 'Larga Estancia'
+    },
+
     areas: [areasCasaShema],
+    Zonas: [numeroZonasSchema],
+
+    planosInmueble: {type: String },
     
     departamento: { type: String, required: true },
     municipio:    { type: String, required: true },
@@ -33,6 +52,10 @@ const inmuebleShema = new Schema({
     estado: { type: String, 
         enum: ['disponible', 'arrendado', 'suspendido']
     },
+
+    contrato: {type: String},
+
+    Precio: { type: Number, required: true}
 
 }, { timestamps : true});
 
