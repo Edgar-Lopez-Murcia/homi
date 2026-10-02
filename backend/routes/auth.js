@@ -1,7 +1,7 @@
 const express   = require('express');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
-const Usuario   = require('../models/Usuario');
+const Usuario   = require('../models/Users');
 
 const router = express.Router();
 const verificarToken = require('../middleware/auth');
@@ -27,13 +27,12 @@ router.post('/registro', async (req, res) => {
         // Guardar el usuario con la contraseña encriptada
         const usuario = await Usuario.create({
             nombre,
-            imagenPerfil,
             email,
             password: hash,
             rol,
             departamento,
             municipio,
-            verificado,
+            verificado
         });
 
         // Crear el token JWT - dura 24 horas
@@ -133,7 +132,71 @@ router.get('/perfil', verificarToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+routes.put('/perfil', verificarToken, async (req, res) => {
+    try {
 
+        const {nombre, imagenPerfil, departamento, municipio  } = req.body;
+        const campoActualizar= {};
 
+        if (nombre !== undefined) campoActualizar.nombre = nombre;
+        if (imagenPerfil !== undefined) campoActualizar.imagenPerfil = imagenPerfil;
+        if (departamento !== undefined) campoActualizar.departamento = departamento;
+        if (municipio !== undefined) campoActualizar.municipio = municipio;
+
+        const modificacion = await Usuario.findByIdAndUpdate (
+            req.usuario.id,
+            campoActualizar,
+            {new: true, runValidators: true}
+        ).select('-password');
+        if (!modificacion) {
+            return res.status(404).json({ error: 'El perfil no existe'});
+        }
+        res.json({
+            mensaje: 'perfil actualizado con éxito',
+            perfil: modificacion
+        });
+    } catch (err) {
+        res.status(500).json({error: err.message})
+    }
+});
+
+routes.put('/cambiar-password', verificarToken, async (req,res) => {
+    try {
+        const usuario = await Usuario.findById(req.usuario.id).select('password');
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'La cuenta no existe' });
+        }
+
+        const {passwordActual, passwordNueva} = req.body;
+
+        const validacion = await  bcrypt.compare(passwordActual, usuario.password);
+        if (!validacion) {
+            return res.status(401).json({
+                error: 'contraseña incorrecta'
+            });
+        }
+        const comparacion = await bcrypt.compare(passwordNueva, usuario.password);
+        if (comparacion) {
+            return res.status(400).json({
+                error: 'La nueva contraseña no debe ser la misma que la actual '
+            })
+        }
+        const hash = await bcrypt.hash(passwordNueva, 10);
+        
+        const modificacionContraseña = await Usuario.findByIdAndUpdate (
+            req.usuario.id,
+            {password:hash},
+            {new: true, runValidators: true}
+        ).select('-password');
+
+        res.json({
+            mensaje: 'Contraseña actualizada con éxito',
+        });
+        
+    } catch (err) {
+        res.status(500).json({error: err.message})
+    }
+})
 // 4. Exportar el router
 module.exports = router;
