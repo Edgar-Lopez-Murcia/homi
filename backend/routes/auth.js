@@ -5,9 +5,13 @@ const Usuario   = require('../models/Users');
 
 const router = express.Router();
 const verificarToken = require('../middleware/auth');
+const verificarAdmin = require('../middleware/admin');
+const sanitizarEntradas = require('../middleware/sanitizarEntradas');
+const validarUsuario = require('../middleware/validarUsuario');
+const { limitadorLogin } = require('../middleware/limitadorPeticiones');
 
 // 2. POST /api/auth/registro - Crear cuenta nueva
-router.post('/registro', async (req, res) => {
+router.post('/registro',  sanitizarEntradas, validarUsuario, async (req, res) => {
     try {
         const { nombre, email, password, rol, 
             departamento, municipio, verificado } = req.body;
@@ -68,7 +72,7 @@ router.post('/registro', async (req, res) => {
 });
 
 // 3. POST /api/auth/login - Iniciar sesión y recibir token
-router.post('/login', async (req, res) => {
+router.post('/login', limitadorLogin, validarUsuario, async (req, res) => {
     try {
         const { email, password } = req.body;
 
@@ -132,7 +136,7 @@ router.get('/perfil', verificarToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-routes.put('/perfil', verificarToken, async (req, res) => {
+router.put('/perfil', verificarToken, sanitizarEntradas, async (req, res) => {
     try {
 
         const {nombre, imagenPerfil, departamento, municipio  } = req.body;
@@ -153,14 +157,14 @@ routes.put('/perfil', verificarToken, async (req, res) => {
         }
         res.json({
             mensaje: 'perfil actualizado con éxito',
-            perfil: modificacion
+            perfil: modificacion, 
         });
     } catch (err) {
         res.status(500).json({error: err.message})
     }
 });
 
-routes.put('/cambiar-password', verificarToken, async (req,res) => {
+router.put('/cambiar-password', verificarToken, async (req,res) => {
     try {
         const usuario = await Usuario.findById(req.usuario.id).select('password');
 
@@ -169,6 +173,15 @@ routes.put('/cambiar-password', verificarToken, async (req,res) => {
         }
 
         const {passwordActual, passwordNueva} = req.body;
+
+        if (typeof passwordActual !== 'string' || typeof passwordNueva !== 'string') {
+            return res.status(400).json({ error: "Los datos enviados deben ser texto puro." });
+        }
+
+        // Validación de longitud mínima antes de procesar
+        if (passwordNueva.length < 6) {
+            return res.status(400).json({ error: "La nueva contraseña debe tener al menos 6 caracteres." });
+        }
 
         const validacion = await  bcrypt.compare(passwordActual, usuario.password);
         if (!validacion) {
@@ -184,11 +197,15 @@ routes.put('/cambiar-password', verificarToken, async (req,res) => {
         }
         const hash = await bcrypt.hash(passwordNueva, 10);
         
-        const modificacionContraseña = await Usuario.findByIdAndUpdate (
+        const modificarContraseña = await Usuario.findByIdAndUpdate (
             req.usuario.id,
             {password:hash},
             {new: true, runValidators: true}
         ).select('-password');
+
+        if (!modificarContraseña) { 
+            return res.status(404).json({ error: 'No se pudo actualizar la contraseña'})
+        }
 
         res.json({
             mensaje: 'Contraseña actualizada con éxito',
@@ -197,6 +214,58 @@ routes.put('/cambiar-password', verificarToken, async (req,res) => {
     } catch (err) {
         res.status(500).json({error: err.message})
     }
-})
+});
+
+router.put('/actualizar-verificacion/:id',verificarToken, verificarAdmin, async (req, res) => {
+    try{
+
+        const {rol, verificado, estado} = req.body;
+        const camposActualizar = {};
+
+        if (rol !== undefined) camposActualizar.rol = rol;
+        if (verificado !== undefined) camposActualizar.verificado = verificado;
+        if (estado !== undefined) camposActualizar.estado = estado;
+
+        const modificado = await Usuario.findByIdAndUpdate(
+            req.params.id,
+            camposActualizar,
+            {new: true, runValidators: true}
+        ).select('-password');
+
+        if (!modificado) {
+            return res.status(404).json({ error: 'La cuenta no existe'});
+        }
+        res.json({
+            mensaje: 'Perfil actualizado con exito',
+            perfil: modificado
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message})
+    }
+}); 
+
+router.delete('/perfil/:id', verificarToken, async (req, res) => {
+    try{
+
+        const esDuenio = (req.usuario.id === req.params.id);
+        const esAdmin = (req.usuario.rol === 'admin');
+
+        if (!esDuenio && !esAdmin) {
+            return res.status(403).json({ error: 'No tienes permisos para eliminar esta cuenta' });
+        }
+
+        const eliminado = await Usuario.findByIdAndDelete(req.params.id).select('-password');
+
+        if (!eliminado) return res.status(404).json({ error: 'Cuenta no encontrada'});
+        res.json({ 
+            mensaje: 'Cuenta eliminada con exito',
+            usuarioEliminado: eliminado.nombre
+        });
+    } catch (err) {
+        res.status(400).json({ error: err.message});
+    }
+});
+
+
 // 4. Exportar el router
 module.exports = router;

@@ -1,6 +1,6 @@
 const {Schema, model } = require('mongoose')
 
-const areasCasaShema = new Schema ({
+const areasCasaSchema = new Schema ({
 
     nombre: { type: String, required: true},
     imagen1: { type: String, required: true},
@@ -11,21 +11,21 @@ const areasCasaShema = new Schema ({
 const numeroZonasSchema = new Schema ({
     nombreZona: {type: String, enum: ['Exterior','Cocina', 'Baño', 'habitacion', 'Cuarto de lavado', 
         'Vestidor', 'Bodega', 'Sala de estar', 'Comedor', 'Cuarto de estudio', 'Piso',
-        'Patio interior', 'Terrrasa', 'otros'
+        'Patio interior', 'Terrasa', 'otros'
     ], required: true },
-    cantidad: {type: Number, required: true}
+    cantidad: {type: Number, required: true, min:0}
 })
 
-const inmuebleShema = new Schema({
+const inmuebleSchema = new Schema({
 
-    codigoCorto:   { type: 'String', required: true},
+    codigoCorto:   { type: String, required: true, unique:true},
 
     propietario: {
         type: Schema.Types.ObjectId,
         ref: 'Users',
         required: true
     }, 
-    titulo: { type: String, required: true},
+    titulo: { type: String, required: true, trim: true},
     descripcion: { type: String, required: true},
     tipo: { type: String, 
         enum: ['casa', 'apartamento', 'apartamento-estudio', 'habitacion', 'local'],
@@ -39,8 +39,8 @@ const inmuebleShema = new Schema({
         default: 'Larga Estancia'
     },
 
-    areas: [areasCasaShema],
-    Zonas: [numeroZonasSchema],
+    areas: [areasCasaSchema],
+    zonas: [numeroZonasSchema],
 
     planosInmueble: {type: String },
     
@@ -50,14 +50,23 @@ const inmuebleShema = new Schema({
     detallesDireccion: { type: String }, // Ej: "Frente al parque principal, apto 201"
 
     estado: { type: String, 
-        enum: ['disponible', 'arrendado', 'suspendido']
+        enum: ['disponible', 'arrendado', 'suspendido'],
+        default: 'disponible',
+        required: true
     },
 
     contrato: {type: String},
 
-    Precio: { type: Number, required: true}
+    precio: { type: Number, required: true, min:0},
+    likes: {
+        type: Number,
+        default: 0
+    }
 
 }, { timestamps : true});
 
-const Properties = model('Properties', inmuebleShema);
+inmuebleSchema.index({ departamento: 1, municipio: 1, estado: 1 });
+inmuebleSchema.index({ precio: 1 });
+
+const Properties = model('Properties', inmuebleSchema);
 module.exports = Properties;
