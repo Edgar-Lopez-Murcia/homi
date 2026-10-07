@@ -49,6 +49,21 @@ const inmuebleSchema = new Schema({
     direccionExacta: { type: String, required: true },
     detallesDireccion: { type: String }, // Ej: "Frente al parque principal, apto 201"
 
+     // 🔥 NUEVO CAMPO: Geolocalización en formato GeoJSON
+    ubicacion: {
+        type: {
+            type: String,
+            enum: ['Point'], // Obligatoriamente debe ser un 'Punto' geográfico
+            required: true,
+            default: 'Point'
+        },
+        // [Longitud, Latitud] - OJO: MongoDB exige la Longitud PRIMERO y la Latitud SEGUNDO
+        coordinates: {
+            type: [Number],
+            required: true
+        }
+    },
+
     estado: { type: String, 
         enum: ['disponible', 'arrendado', 'suspendido'],
         default: 'disponible',
@@ -64,6 +79,8 @@ const inmuebleSchema = new Schema({
     }
 
 }, { timestamps : true});
+
+inmuebleSchema.index({ ubicacion: "2dsphere" });
 
 inmuebleSchema.index({ departamento: 1, municipio: 1, estado: 1 });
 inmuebleSchema.index({ precio: 1 });

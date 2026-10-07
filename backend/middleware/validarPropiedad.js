@@ -24,6 +24,23 @@ const validarPropiedad = (req, res, next) => {
         if (isNaN(precioNum) || precioNum < 0) return res.status(400).json({ error: "El 'precio' debe ser un número mayor o igual a cero." });
         req.body.precio = precioNum;
     }
+    // Dentro de middleware/validarPropiedad.js (Añadir al bloque de validaciones)
+
+    const { ubicacion } = req.body;
+
+    if (!ubicacion || !ubicacion.coordinates || !Array.isArray(ubicacion.coordinates) || ubicacion.coordinates.length !== 2) {
+        return res.status(400).json({ error: "La 'ubicacion' con coordenadas [Longitud, Latitud] es obligatoria." });
+    }
+
+    const [longitud, latitud] = ubicacion.coordinates;
+
+    // Validar límites matemáticos reales del planeta Tierra
+    if (isNaN(longitud) || longitud < -180 || longitud > 180) {
+        return res.status(400).json({ error: "La Longitud debe ser un número entre -180 y 180." });
+    }
+    if (isNaN(latitud) || latitud < -90 || latitud > 90) {
+        return res.status(400).json({ error: "La Latitud debe ser un número entre -90 y 90." });
+    }
 
     next();
 };
