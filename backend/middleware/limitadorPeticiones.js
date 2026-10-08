@@ -1,6 +1,14 @@
 // middleware/limitadorPeticiones.js
 const rateLimit = require('express-rate-limit');
 
+const limitadorGlobal = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100, // Límite de 100 peticiones por IP cada 15 min
+    message: { error: "Demasiadas peticiones desde esta IP. Intenta más tarde." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 const limitadorLogin = rateLimit({
     windowMs: 15 * 60 * 1000, // Ventana de tiempo: 15 minutos
     max: 5, // Máximo 5 intentos por IP
@@ -21,5 +29,4 @@ const limitadorLikes = rateLimit({
     legacyHeaders: false,
 });
 
-module.exports = { limitadorLogin, 
-    limitadorLikes };
+module.exports = { limitadorGlobal, limitadorLogin, limitadorLikes };

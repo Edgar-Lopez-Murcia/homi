@@ -3,12 +3,12 @@ const {Schema, model } = require('mongoose')
 const likeSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Users',
         required: true
     },
     publicationId: {
         type: Schema.Types.ObjectId,
-        ref: 'Publication',
+        ref: 'Properties',
         required: true
     }
 }, { timestamps: true });

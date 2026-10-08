@@ -27,5 +27,9 @@ multaInfraccionSchema.pre('validate', function(next) {
     }
     next();
 });
+multaInfraccionSchema.index({ usuarioPenalizado: 1, estadoPenalizacion: 1 });
 
-module.exports = model('Penalties', multaInfraccionSchema);
+
+const Fines = model('Fines', multaInfraccionSchema);
+module.exports = Fines;
+

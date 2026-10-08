@@ -24,6 +24,23 @@ const validarPropiedad = (req, res, next) => {
         if (isNaN(precioNum) || precioNum < 0) return res.status(400).json({ error: "El 'precio' debe ser un número mayor o igual a cero." });
         req.body.precio = precioNum;
     }
+    // Validar longitudes
+    if (titulo.trim().length < 5 || titulo.trim().length > 100) {
+        return res.status(400).json({ error: "El 'titulo' debe tener entre 5 y 100 caracteres." });
+    }
+    if (descripcion.trim().length < 20 || descripcion.trim().length > 2000) {
+        return res.status(400).json({ error: "La 'descripcion' debe tener entre 20 y 2000 caracteres." });
+    }
+
+    // Validar precio máximo (opcional)
+    if (precioNum > 100000000) { // 100 millones
+        return res.status(400).json({ error: "El 'precio' excede el límite permitido." });
+    }
+
+    // Si tipoAlquiler y estado son obligatorios, quita el 'if' condicional
+    if (!tipoAlquiler || !alquilerPermitidos.includes(tipoAlquiler)) {
+        return res.status(400).json({ error: "El tipo de alquiler es obligatorio y debe ser válido." });
+    }
     // Dentro de middleware/validarPropiedad.js (Añadir al bloque de validaciones)
 
     const { ubicacion } = req.body;

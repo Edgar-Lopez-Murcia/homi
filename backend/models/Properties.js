@@ -9,9 +9,9 @@ const areasCasaSchema = new Schema ({
 })
 
 const numeroZonasSchema = new Schema ({
-    nombreZona: {type: String, enum: ['Exterior','Cocina', 'Baño', 'habitacion', 'Cuarto de lavado', 
+    nombreZona: {type: String, enum: ['Exterior','Cocina', 'Baño', 'habitación', 'Cuarto de lavado', 
         'Vestidor', 'Bodega', 'Sala de estar', 'Comedor', 'Cuarto de estudio', 'Piso',
-        'Patio interior', 'Terrasa', 'otros'
+        'Patio interior', 'Terraza', 'otros'
     ], required: true },
     cantidad: {type: Number, required: true, min:0}
 })

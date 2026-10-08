@@ -17,7 +17,7 @@ async function verificarPublicante(req, res, next) {
 
         // 2. LÓGICA DE BANEO CORREGIDA:
         // Si el estado del usuario coincide con alguna de estas tres penalizaciones, lo rebotamos
-        const estadosBaneados = ['BANNER', 'SUSPENDED', 'RESTRICTED'];
+        const estadosBaneados = ['BANNED', 'SUSPENDED', 'RESTRICTED'];
         if (estadosBaneados.includes(usuarioDB.estado)) {
             return res.status(403).json({ error: 'Tu cuenta ha sido penalizada o suspendida. Acceso denegado.' });
         }
@@ -31,8 +31,9 @@ async function verificarPublicante(req, res, next) {
         // Si pasó todos los filtros de sanidad, avanzamos
         next();
 
-    } catch (err) {
-        return res.status(500).json({ error: 'Error interno al validar los permisos del usuario.', detalle: err.message });
+    }  catch (err) {
+        console.error('Error en verificarPublicante:', err);
+        return res.status(500).json({ error: 'Error interno al validar los permisos del usuario.' });
     }
 }
 

@@ -16,11 +16,18 @@ function verificarToken(req, res, next) {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+        if (!decoded.id || !decoded.rol) {
+            return res.status(403).json({ error: 'Token inválido - estructura incorrecta' });
+        }
+
+
         req.usuario = decoded;
 
         next();
 
     } catch (err) {
+        console.error('Error verificando token:', err.message);
+
         res.status(403).json({
             error: 'Token inválido o expirado'
         });

@@ -1,11 +1,27 @@
-// middleware/sanitizarEntradas.js
+const xss = require('xss');
 
 const sanitizarEntradas = (req, res, next) => {
+    // Sanitizar body
     if (req.body) {
         for (let llave in req.body) {
             if (typeof req.body[llave] === 'string') {
-                // Reemplaza las etiquetas de código para que el navegador las lea como texto inofensivo
-                req.body[llave] = req.body[llave].replace(/</g, "&lt;").replace(/>/g, "&gt;").trim();
+                req.body[llave] = xss(req.body[llave]).trim();
+            }
+        }
+    }
+    // Sanitizar query params
+    if (req.query) {
+        for (let llave in req.query) {
+            if (typeof req.query[llave] === 'string') {
+                req.query[llave] = xss(req.query[llave]).trim();
+            }
+        }
+    }
+    // Sanitizar route params
+    if (req.params) {
+        for (let llave in req.params) {
+            if (typeof req.params[llave] === 'string') {
+                req.params[llave] = xss(req.params[llave]).trim();
             }
         }
     }

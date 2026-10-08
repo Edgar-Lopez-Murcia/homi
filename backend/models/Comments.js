@@ -1,35 +1,15 @@
-const {Schema, model} = require('mongoose')
+const { Schema, model } = require('mongoose');
 
-const reseñasSchema = new Schema({
+const resenaSchema = new Schema({
+    propiedad: { type: Schema.Types.ObjectId, ref: 'Properties', required: true },
+    usuarioComentario: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
+    comentario: { type: String, required: true, maxlength: 500 },
+    imagenes: [{ type: String }], // Array de URLs de imágenes (más flexible)
+    calificacion: { type: Number, required: true, min: 1, max: 5 },
+    likes: { type: Number, default: 0 }
+}, { timestamps: true });
 
-    usuarioComentario: {
-        type: Schema.Types.ObjectId,
-        ref: 'Users',
-        required: true
-    },
-    comentario: {type: String, required: true, maxlength: 500},
-    imagen1: {type: String},
-    imagen2: {type: String},
-    imagen3: {type: String},
-    calificacion: {type: Number,
-        required: true,
-        min:1,
-        max:5
-    },
-    likes: {type: Number, default: 0}
-})
+// Índice para evitar que un usuario reseñe la misma propiedad dos veces
+resenaSchema.index({ propiedad: 1, usuarioComentario: 1 }, { unique: true });
 
-const comentarioSchema = new Schema({
-    propiedad: {
-        type: Schema.Types.ObjectId,
-        ref:'Properties',
-        required: true,
-        unique: true
-    },
-    reseñas: [reseñasSchema],
-    puntuacionFinal: {type: Number},
-
-}, {timestamps: true});
-
-const Comments = model('Comments', comentarioSchema);
-module.exports = Comments;
+module.exports = model('Comments', resenaSchema);
