@@ -3,26 +3,28 @@ const {Schema, model} = require('mongoose')
 const reseñasSchema = new Schema({
 
     usuarioComentario: {
-        type: Schema.Types.ObjetId,
+        type: Schema.Types.ObjectId,
         ref: 'Users',
         required: true
     },
-    comentario: {type: String, required: true},
-    imagen: {type: String},
-    imagen: {type: String},
-    imagen: {type: String},
+    comentario: {type: String, required: true, maxlength: 500},
+    imagen1: {type: String},
+    imagen2: {type: String},
+    imagen3: {type: String},
     calificacion: {type: Number,
-        enum: [1, 2, 3, 4,5],
-        required: true
+        required: true,
+        min:1,
+        max:5
     },
     likes: {type: Number, default: 0}
 })
 
 const comentarioSchema = new Schema({
     propiedad: {
-        type: Schema.Types.ObjetId,
+        type: Schema.Types.ObjectId,
         ref:'Properties',
-        required: true
+        required: true,
+        unique: true
     },
     reseñas: [reseñasSchema],
     puntuacionFinal: {type: Number},

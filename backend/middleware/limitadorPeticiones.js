@@ -11,4 +11,15 @@ const limitadorLogin = rateLimit({
     legacyHeaders: false, // Desactiva los headers antiguos 'X-RateLimit-*'
 });
 
-module.exports = { limitadorLogin };
+const limitadorLikes = rateLimit({
+    windowMs: 1 * 60 * 1000, // Ventana de tiempo: 1 minuto
+    max: 15, // Máximo 15 clics (Likes/Unlikes) por IP en ese minuto
+    message: {
+        error: "Estás interactuando demasiado rápido con los botones de 'Me gusta'. Por favor, espera un minuto."
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+module.exports = { limitadorLogin, 
+    limitadorLikes };
