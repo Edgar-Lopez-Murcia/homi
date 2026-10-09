@@ -24,7 +24,11 @@ async function verificarPublicante(req, res, next) {
 
         // 3. VERIFICACIÓN DE PERMISOS:
         // Debe ser un administrador O un usuario que ya esté verificado para poder publicar/editar inmuebles
-        if (usuarioDB.verificado !== true && usuarioDB.rol !== 'admin') {
+        const esAdmin = usuarioDB.rol === 'admin';
+        const esPublicante = ['propietario', 'empresa'].includes(usuarioDB.tipoUsuario);
+        const estaVerificado = usuarioDB.verificado === true;
+
+        if (!esAdmin && (!esPublicante || !estaVerificado)) {
             return res.status(403).json({ error: 'Acceso denegado - Requiere verificación de cuenta o rol de administrador.' });
         }
 

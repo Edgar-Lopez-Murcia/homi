@@ -4,6 +4,22 @@ Este documento sirve como guía paso a paso para el futuro, cuando decidas activ
 
 ---
 
+## Tareas Rapidas quse deben hacer:
+### Crear un modelo de ducmentos
+En este modelo Crear un modelo Verificaciones o Documentos que guarde:
+
+usuario (ref a Users).
+
+tipoDocumento (enum: 'cedula', 'pasaporte', 'matricula', 'recibo', etc.).
+
+urlDocumento (la URL en Backblaze B2).
+
+estado (pendiente, aprobado, rechazado).
+
+fechaSubida.
+
+Este modelo nos ayudara a verificar a los usuarios que quieran convertirse en propietarios
+
 ## 🧐 1. Entendiendo el Problema y la Solución (Explicación Sencilla)
 
 ### El Problema:

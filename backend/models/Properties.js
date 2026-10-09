@@ -3,7 +3,7 @@ const {Schema, model } = require('mongoose')
 const areasCasaSchema = new Schema ({
 
     nombre: { type: String, required: true},
-    imagen1: { type: String, required: true},
+    imagen1: { type: String},
     imagen2: { type: String},
     imagen3: { type: String}
 })
@@ -38,6 +38,7 @@ const inmuebleSchema = new Schema({
         required: true,
         default: 'Larga Estancia'
     },
+    imagenPrincipal: {type: String, required: true},
 
     areas: [areasCasaSchema],
     zonas: [numeroZonasSchema],

@@ -23,6 +23,8 @@ const reportesSchema = new Schema ({
     comentario: {type: String, required: true},
 
     imagenPrueba: [{type:String, required: true}],
+    
+    adminResponsable: { type: Schema.Types.ObjectId, ref: 'Users' },
 
     estado: {type: String, enum: ['PENDIENTE_REVISION', 'EN_PROCESO', 
         'EVALUACION', 'DENEGADO', 'CONFIRMADO', 'FINALIZADO'], default: 'PENDIENTE_REVISION'}

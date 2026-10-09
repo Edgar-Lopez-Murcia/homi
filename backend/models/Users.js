@@ -17,8 +17,12 @@ const usuarioSchema = new Schema({
     email:           {type: String, required: true, unique: true},
     password:        {type: String, required: true},
     rol:             {type: String, 
-        enum: ['admin', 'usuario', 'empresa', 'propietario'],
+        enum: ['admin', 'usuario'],
         default:'usuario' },
+    tipoUsuario: {type: String,
+        enum: ['arrendatario', 'propietario', 'empresa'],
+        default: 'arrendatario'
+    },
     estado: {type: String,
         enum: ['ACTIVE', 'SUSPENDED', 'RESTRICTED', 'BANNED', 'INACTIVE'],
         default: 'ACTIVE'
