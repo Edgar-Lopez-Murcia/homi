@@ -2,16 +2,18 @@ const express   = require('express');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
 const Usuario   = require('../models/Users');
+const validator = require('validator');
 
 const router = express.Router();
 const verificarToken = require('../middleware/auth');
 const verificarAdmin = require('../middleware/admin');
-const sanitizarEntradas = require('../middleware/sanitizarEntradas');
-const validarUsuario = require('../middleware/validarUsuario');
+const validarRegistro = require('../middleware/validarRegistro');
+const validarLogin = require('../middleware/validarLogin');
 const { limitadorLogin } = require('../middleware/limitadorPeticiones');
+const {limitadorCambioPassword} = require('../middleware/limitadorPeticiones')
 
 // 2. POST /api/auth/registro - Crear cuenta nueva
-router.post('/registro',  sanitizarEntradas, validarUsuario, async (req, res) => {
+router.post('/registro',   validarRegistro, async (req, res) => {
     try {
         const { nombre, email, password, rol, 
             departamento, municipio, verificado } = req.body;
@@ -72,7 +74,7 @@ router.post('/registro',  sanitizarEntradas, validarUsuario, async (req, res) =>
 });
 
 // 3. POST /api/auth/login - Iniciar sesión y recibir token
-router.post('/login', limitadorLogin, validarUsuario, async (req, res) => {
+router.post('/login', limitadorLogin, validarLogin,  async (req, res) => {
     try {
         const { email, password } = req.body;
 
@@ -93,6 +95,8 @@ router.post('/login', limitadorLogin, validarUsuario, async (req, res) => {
                 error: 'Email o contraseña incorrectos'
             });
         }
+        usuario.ultimoLogin = new Date();
+        await usuario.save();
 
         // Crear el token JWT - dura 24 horas
         const token = jwt.sign(
@@ -239,14 +243,19 @@ router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req,
         res.status(500).json({ error: 'Error al generar las estadísticas', detalle: err.message });
     }
 });
-router.put('/perfil', verificarToken, sanitizarEntradas, async (req, res) => {
+router.put('/perfil', verificarToken,  async (req, res) => {
     try {
 
         const {nombre, imagenPerfil, departamento, municipio  } = req.body;
         const campoActualizar= {};
 
         if (nombre !== undefined) campoActualizar.nombre = nombre;
-        if (imagenPerfil !== undefined) campoActualizar.imagenPerfil = imagenPerfil;
+        if (imagenPerfil !== undefined) {
+            if (!validator.isURL(imagenPerfil, { require_protocol: true })) {
+                return res.status(400).json({ error: 'La URL de la imagen de perfil no es válida.' });
+            }
+            campoActualizar.imagenPerfil = imagenPerfil;
+        }
         if (departamento !== undefined) campoActualizar.departamento = departamento;
         if (municipio !== undefined) campoActualizar.municipio = municipio;
 
@@ -267,7 +276,7 @@ router.put('/perfil', verificarToken, sanitizarEntradas, async (req, res) => {
     }
 });
 
-router.put('/cambiar-password', verificarToken, async (req,res) => {
+router.put('/cambiar-password', verificarToken, limitadorCambioPassword, async (req,res) => {
     try {
         const usuario = await Usuario.findById(req.usuario.id).select('password');
 
@@ -282,7 +291,7 @@ router.put('/cambiar-password', verificarToken, async (req,res) => {
         }
 
         // Validación de longitud mínima antes de procesar
-        if (passwordNueva.length < 6) {
+        if (passwordNueva.length < 8) {
             return res.status(400).json({ error: "La nueva contraseña debe tener al menos 6 caracteres." });
         }
 
@@ -322,15 +331,24 @@ router.put('/cambiar-password', verificarToken, async (req,res) => {
 router.put('/actualizar-verificacion/:id',verificarToken, verificarAdmin, async (req, res) => {
     try{
 
-        const {rol, verificado, estado} = req.body;
-
-        if (req.params.id === req.usuario.id && rol !== undefined && rol !== 'admin') {
-            return res.status(400).json({ error: 'No puedes revocar tu propio rol de administrador desde el panel.' });
+        const {tipoUsuario, verificado, estado} = req.body;
+        
+        // Validar tipoUsuario
+        if (tipoUsuario !== undefined && !['propietario', 'empresa', 'arrendatario'].includes(tipoUsuario)) {
+            return res.status(400).json({ error: 'tipoUsuario no es válido.' });
         }
-
+        // Validar verificado
+        if (verificado !== undefined && typeof verificado !== 'boolean') {
+            return res.status(400).json({ error: 'verificado debe ser booleano.' });
+        }
+        // Validar estado
+        const estadosPermitidos = ['ACTIVE', 'SUSPENDED', 'RESTRICTED', 'BANNED', 'INACTIVE'];
+        if (estado !== undefined && !estadosPermitidos.includes(estado)) {
+            return res.status(400).json({ error: 'estado no es válido.' });
+        }
         const camposActualizar = {};
 
-        if (rol !== undefined) camposActualizar.rol = rol;
+        if (tipoUsuario !== undefined) camposActualizar.tipoUsuario = tipoUsuario;
         if (verificado !== undefined) camposActualizar.verificado = verificado;
         if (estado !== undefined) camposActualizar.estado = estado;
 

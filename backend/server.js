@@ -10,6 +10,7 @@ const productosRoutes = require('./routes/productos');
 const ordenesRoutes = require('./routes/ordenes');
 const pagoRoutes   = require('./routes/pago');
 const { limitadorGlobal } = require('./middleware/limitadorPeticiones');
+const sanitizarEntradas = require('./middleware/sanitizarEntradas');
 
 // 2. Crear la aplicación y definir el puerto
 const app = express();
@@ -23,6 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
 // 2. Limitador GLOBAL (se aplica a TODAS las rutas)
+app.use(sanitizarEntradas);
 app.use(limitadorGlobal);
 
 // 4. Conectar a MongoDB Atlas  

@@ -17,16 +17,11 @@ router.post('/:propertyId/like', verificarToken, limitadorLikes, async (req, res
         });
 
 
-        const inmuebleActualizado = await Properties.findByIdAndUpdate(
-            propertyId,
-            { $inc: { likes: 1 } }, 
-            { new: true }
-        );
+        const inmueble = await Properties.findById(propertyId);
+        if (!inmueble) return res.status(404).json({ error: 'El inmueble no existe' });
 
-        if (!inmuebleActualizado) {
-            await Likes.deleteOne({ userId, publicationId: propertyId });
-            return res.status(404).json({ error: 'El inmueble no existe' });
-        }
+        await Likes.create({ userId, publicationId: propertyId });
+        const actualizado = await Properties.findByIdAndUpdate(propertyId, { $inc: { likes: 1 } }, { new: true });
 
         res.status(201).json({ 
             mensaje: 'Like guardado correctamente', 

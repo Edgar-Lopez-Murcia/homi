@@ -55,7 +55,7 @@ router.get('/:propertyId', async (req, res) => {
     try {
         // Usamos .populate() para traer automáticamente el nombre o foto del usuario que comentó
         const comentarios = await Comments.findOne({ propiedad: req.params.propertyId })
-            .populate('reseñas.usuarioComentario', 'nombre avatar'); // Modifica 'nombre avatar' según tu modelo de Users
+            .populate('reseñas.usuarioComentario', 'imagenPerfil'); // Modifica 'nombre avatar' según tu modelo de Users
 
         if (!comentarios) {
             return res.json({ reseñas: [], puntuacionFinal: 0 });

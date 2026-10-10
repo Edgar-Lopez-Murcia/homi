@@ -5,7 +5,6 @@ const router = express.Router();
 const verificarToken = require('../middleware/auth');
 const verificarAdmin = require('../middleware/admin');
 const verificarPublicante = require('../middleware/publicante');
-const sanitizarEntradas = require('../middleware/sanitizarEntradas');
 const crypto = require('crypto'); 
 const validarPropiedad = require('../middleware/validarPropiedad');
 
@@ -19,72 +18,96 @@ router.get('/', async (req, res) => {
     try {
         const { 
             departamento, codigoCorto, municipio, tipo, tipoAlquiler, 
-            precioMin, precioMax, habitacionesMin,
-            lat, lng, distanciaMax = 5000, // distanciaMax por defecto: 5000 metros (5km)
+            precioMin, precioMax, habitacionesMin, bañosMin,
+            lat, lng, distanciaMax = 5000,
             page = 1, limit = 20 
         } = req.query;
 
-        let filtros = {};
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+        const skip = (pageNum - 1) * limitNum;
 
-        // 1. PRIORIDAD MÁXIMA: Si buscan por código corto directo
+        // Si hay búsqueda geográfica, usamos agregación
+        if (lat && lng) {
+            const pipeline = [
+                {
+                    $geoNear: {
+                        near: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+                        distanceField: "distancia",
+                        maxDistance: Number(distanciaMax),
+                        spherical: true,
+                        query: { estado: 'disponible' } // Filtros adicionales aquí
+                    }
+                },
+                { $skip: skip },
+                { $limit: limitNum }
+            ];
+
+            const inmuebles = await Propiedad.aggregate(pipeline);
+            
+            // Para el total, hacemos un count con $geoNear
+            const totalPipeline = [
+                {
+                    $geoNear: {
+                        near: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+                        distanceField: "distancia",
+                        maxDistance: Number(distanciaMax),
+                        spherical: true,
+                        query: { estado: 'disponible' }
+                    }
+                },
+                { $count: "total" }
+            ];
+            const totalResult = await Propiedad.aggregate(totalPipeline);
+            const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+            return res.json({
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum),
+                inmuebles
+            });
+        }
+
+        // Búsqueda normal sin geolocalización
+        let filtros = {};
         if (codigoCorto) {
             filtros = { codigoCorto: codigoCorto.toUpperCase().trim() };
         } else {
-            // Filtro base para los clientes comunes
-            filtros.estado = 'disponible'; 
-
-            // 2. FILTROS GEOGRÁFICOS (MAPA): Buscar por cercanía radial
-            if (lat && lng) {
-                filtros.ubicacion = {
-                    $near: {
-                        $geometry: {
-                            type: "Point",
-                            coordinates: [Number(lng), Number(lat)] // [Longitud, Latitud] obligatoriamente
-                        },
-                        $maxDistance: Number(distanciaMax) // Distancia máxima en metros
-                    }
-                };
-            }
-
-            // 3. FILTROS TEXTUALES Y CATÁLOGOS
+            filtros.estado = 'disponible';
             if (departamento) filtros.departamento = departamento;
-            if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' }; 
+            if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' };
             if (tipo) filtros.tipo = tipo;
             if (tipoAlquiler) filtros.tipoAlquiler = tipoAlquiler;
-
-            // 4. BÚSQUEDA AVANZADA: Rangos de Precios
             if (precioMin || precioMax) {
                 filtros.precio = {};
-                if (precioMin) filtros.precio.$gte = Number(precioMin); // Mayor o igual que
-                if (precioMax) filtros.precio.$lte = Number(precioMax); // Menor o igual que
+                if (precioMin) filtros.precio.$gte = Number(precioMin);
+                if (precioMax) filtros.precio.$lte = Number(precioMax);
             }
-
-            // 5. BÚSQUEDA AVANZADA DENTRO DE ARREGLOS (Zonas/Habitaciones)
-            // Filtra inmuebles que tengan una zona llamada 'habitacion' cuya cantidad sea >= a lo pedido
             if (habitacionesMin) {
                 filtros.zonas = {
                     $elemMatch: {
-                        nombreZona: 'habitacion',
+                        nombreZona: 'habitación',
+                        cantidad: { $gte: Number(habitacionesMin) }
+                    }
+                };
+            };
+            if (bañosMin) {
+                filtros.zonas = {
+                    $elemMatch: {
+                        nombreZona: 'Baño',
                         cantidad: { $gte: Number(habitacionesMin) }
                     }
                 };
             }
         }
 
-        // Paginación Robusta
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
-
-        // Si se usa $near, MongoDB exige usar .find() tradicional para paginar.
-        // Contamos los documentos basados en los filtros aplicados.
         const [inmuebles, total] = await Promise.all([
-            Propiedad.find(filtros)
-                .skip(skip)
-                .limit(limitNum),
+            Propiedad.find(filtros).skip(skip).limit(limitNum),
             Propiedad.countDocuments(filtros)
         ]);
-        
+
         res.json({
             total,
             page: pageNum,
@@ -242,14 +265,24 @@ router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req,
 
 
 // POST crear inmueble — Convención REST limpia sin la palabra '/publicar'
-router.post('/', verificarToken, verificarPublicante, validarPropiedad, sanitizarEntradas, async (req, res) => {
+router.post('/', verificarToken, verificarPublicante, validarPropiedad, async (req, res) => {
     try {
-        // Generamos un código aleatorio único de 6 caracteres (ej: A9F3B2)
         const codigoAleatorio = crypto.randomBytes(3).toString('hex').toUpperCase();
+
+        // Validar que las imágenes sean URLs válidas
+        if (req.body.areas && Array.isArray(req.body.areas)) {
+            for (const area of req.body.areas) {
+                if (area.imagen1 && !validator.isURL(area.imagen1, { require_protocol: true })) {
+                    return res.status(400).json({ error: `La URL de la imagen del área ${area.nombre} no es válida.` });
+                };
+            
+            // ... validar imagen2, imagen3
+            }
+        }
 
         const datosInmueble = { 
             ...req.body, 
-            codigoCorto: codigoAleatorio, // <-- El backend lo genera e inyecta aquí automáticamente
+            codigoCorto: codigoAleatorio,
             propietario: req.usuario.id, 
             likes: 0 
         };
@@ -257,7 +290,6 @@ router.post('/', verificarToken, verificarPublicante, validarPropiedad, sanitiza
         const nuevo = await Propiedad.create(datosInmueble);
         res.status(201).json(nuevo);
     } catch (err) {
-        // Si por extrema mala suerte el código ya existía, Mongo arrojará el error 11000
         if (err.code === 11000) {
             return res.status(400).json({ error: "Hubo un problema de unicidad con el código generado, por favor intenta enviar el formulario de nuevo." });
         }
@@ -265,7 +297,7 @@ router.post('/', verificarToken, verificarPublicante, validarPropiedad, sanitiza
     }
 });
 // PUT editar inmueble — Convención REST limpia sin la palabra '/editar'
-router.put('/:id', verificarToken, verificarPublicante, validarPropiedad, sanitizarEntradas, async (req, res) => {
+router.put('/:id', verificarToken, verificarPublicante, validarPropiedad,  async (req, res) => {
     try {
         const inmueble = await Propiedad.findById(req.params.id).select('propietario');
         if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
@@ -292,7 +324,7 @@ router.put('/:id', verificarToken, verificarPublicante, validarPropiedad, saniti
     }
 });
 
-router.put('/:id/agregar-areas', verificarToken, verificarPublicante, sanitizarEntradas, async (req, res) => {
+router.put('/:id/agregar-areas', verificarToken, verificarPublicante,  async (req, res) => {
     try {
         const inmueble = await Propiedad.findById(req.params.id).select('propietario zonas');
         if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
