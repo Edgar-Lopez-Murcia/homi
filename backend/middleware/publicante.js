@@ -1,5 +1,5 @@
 // middleware/verificarPublicante.js
-const Usuario = require('../models/Users');
+import Usuario from '../models/Users.js'
 
 async function verificarPublicante(req, res, next) {
     if (!req.usuario) {
@@ -36,9 +36,8 @@ async function verificarPublicante(req, res, next) {
         next();
 
     }  catch (err) {
-        console.error('Error en verificarPublicante:', err);
-        return res.status(500).json({ error: 'Error interno al validar los permisos del usuario.' });
+        next(err)
     }
 }
 
-module.exports = verificarPublicante;
+export default verificarPublicante;

@@ -13,4 +13,4 @@ function verificarAdmin(req, res, next) {
     next();
 }
 
-module.exports = verificarAdmin;
+export default verificarAdmin;

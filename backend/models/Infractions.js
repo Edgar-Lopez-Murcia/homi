@@ -1,4 +1,4 @@
-const {Schema, model} = require('mongoose')
+import { Schema, model } from 'mongoose';
 
 const infraccionSchema = new Schema ({
 
@@ -10,4 +10,4 @@ const infraccionSchema = new Schema ({
 })
 
 const Infractions = model('Infractions', infraccionSchema);
-module.exports = Infractions;
+export default Infractions;

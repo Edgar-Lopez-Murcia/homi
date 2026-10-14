@@ -1,4 +1,4 @@
-const {Schema, model } = require('mongoose')
+import { Schema, model } from 'mongoose';
 
 const areasCasaSchema = new Schema ({
 
@@ -87,4 +87,4 @@ inmuebleSchema.index({ departamento: 1, municipio: 1, estado: 1 });
 inmuebleSchema.index({ precio: 1 });
 
 const Properties = model('Properties', inmuebleSchema);
-module.exports = Properties;
+export default Properties;

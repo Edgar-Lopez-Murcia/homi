@@ -1,4 +1,4 @@
-const {Schema, model } = require('mongoose')
+import { Schema, model } from 'mongoose';
 
 const likeSchema = new Schema({
     userId: {
@@ -17,4 +17,4 @@ const likeSchema = new Schema({
 likeSchema.index({ userId: 1, publicationId: 1 }, { unique: true });
 
 const Likes = model('Likes', likeSchema);
-module.exports = Likes;
+export default Likes;

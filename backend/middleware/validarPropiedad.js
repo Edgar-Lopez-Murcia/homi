@@ -62,4 +62,4 @@ const validarPropiedad = (req, res, next) => {
     next();
 };
 
-module.exports = validarPropiedad;
+export default validarPropiedad;

@@ -1,4 +1,4 @@
-const { Schema, model } = require('mongoose');
+import { Schema, model } from 'mongoose';
 
 const multaInfraccionSchema = new Schema({
     usuarioPenalizado: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
@@ -31,5 +31,5 @@ multaInfraccionSchema.index({ usuarioPenalizado: 1, estadoPenalizacion: 1 });
 
 
 const Fines = model('Fines', multaInfraccionSchema);
-module.exports = Fines;
+export default Fines;
 

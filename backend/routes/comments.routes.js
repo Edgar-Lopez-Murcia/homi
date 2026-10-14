@@ -1,128 +1,242 @@
-const express = require('express');
+import express from 'express';
+import mongoose from 'mongoose';
+import Comments from '../models/Comments.js';
+import Properties from '../models/Properties.js';
+import verificarToken from '../middleware/auth.js';
+import verificarDuenio from '../middleware/verificarDuenio.js';
+
 const router = express.Router();
-const Comments = require('../models/Comments');
-const verificarToken = require('../middleware/auth');
-// Aquí importarías tu limitador de comentarios cuando lo agregues a tu middleware
 
-// ==========================================
-// 1. RUTA: AGREGAR UNA RESEÑA A UNA PROPIEDAD
-// ==========================================
-router.post('/:propertyId', verificarToken, async (req, res) => {
+// Helpers ------------------------------------------------
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+async function calcularPromedio(propiedadId) {
+    const agg = await Comments.aggregate([
+        { $match: {
+            propiedad: new mongoose.Types.ObjectId(propiedadId),
+            estado: 'visible'
+        }},
+        { $group: {
+            _id: null,
+            promedio: { $avg: '$calificacion' },
+            total:    { $sum: 1 }
+        }}
+    ]);
+    const d = agg[0] || { promedio: 0, total: 0 };
+    return {
+        puntuacionFinal: d.promedio ? parseFloat(d.promedio.toFixed(1)) : 0,
+        totalReseñas:    d.total
+    };
+}
+
+// =========================================================
+// 1. POST — Crear reseña
+// =========================================================
+router.post('/:propiedadId', verificarToken, async (req, res, next) => {
     try {
-        const { propertyId } = req.params;
+        const { propiedadId } = req.params;
         const { comentario, calificacion, imagenes } = req.body;
-        const userId = req.usuario.id; // 🛡️ Seguridad: ID del token
+        const usuarioId = req.usuario.id;
 
-        const nuevaReseña = {
-            usuarioComentario: userId,
+        if (!isValidId(propiedadId))
+            return res.status(400).json({ error: 'ID de propiedad inválido' });
+
+        const propiedad = await Properties.findById(propiedadId).select('propietario');
+        if (!propiedad)
+            return res.status(404).json({ error: 'La propiedad no existe' });
+
+        // Nadie reseña su propia propiedad
+        if (propiedad.propietario.equals(usuarioId))
+            return res.status(403).json({ error: 'No puedes reseñar tu propia propiedad' });
+
+        const nueva = await Comments.create({
+            propiedad: propiedadId,
+            usuarioComentario: usuarioId,
             comentario,
             calificacion,
-            imagenes
-        };
-
-        // 1. Buscamos el documento de comentarios de la propiedad y agregamos la reseña al array usando $push
-        // Si no existe el documento para esa propiedad, lo crea gracias a la opción 'upsert: true'
-        let documentoComentarios = await Comments.findOneAndUpdate(
-            { propiedad: propertyId },
-            { $push: { reseñas: nuevaReseña } },
-            { new: true, upsert: true, runValidators: true }
-        );
-
-        // 2. Cálculo de la puntuación final promedio en el Backend
-        const totalReseñas = documentoComentarios.reseñas.length;
-        const sumaCalificaciones = documentoComentarios.reseñas.reduce((acc, curr) => acc + curr.calificacion, 0);
-        const promedio = parseFloat((sumaCalificaciones / totalReseñas).toFixed(1));
-
-        // 3. Guardamos el nuevo promedio calculado
-        documentoComentarios.puntuacionFinal = promedio;
-        await documentoComentarios.save();
-
-        res.status(201).json({ 
-            mensaje: 'Reseña agregada con éxito', 
-            puntuacionFinal: promedio,
-            reseñas: documentoComentarios.reseñas 
+            imagenes: imagenes || []
         });
 
+        await nueva.populate('usuarioComentario', 'nombre imagenPerfil');
+
+        const { puntuacionFinal, totalReseñas } = await calcularPromedio(propiedadId);
+
+        res.status(201).json({
+            mensaje: 'Reseña creada con éxito',
+            reseña: nueva,
+            puntuacionFinal,
+            totalReseñas
+        });
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        if (err.code === 11000)
+            return res.status(409).json({ error: 'Ya has reseñado esta propiedad' });
+        next(err);
     }
 });
 
-// ==========================================
-// 2. RUTA: OBTENER COMENTARIOS DE UNA PROPIEDAD
-// ==========================================
-router.get('/:propertyId', async (req, res) => {
+// =========================================================
+// 2. GET — Listar reseñas de una propiedad (paginado)
+// =========================================================
+router.get('/:propiedadId', async (req, res, next) => {
     try {
-        // Usamos .populate() para traer automáticamente el nombre o foto del usuario que comentó
-        const comentarios = await Comments.findOne({ propiedad: req.params.propertyId })
-            .populate('reseñas.usuarioComentario', 'imagenPerfil'); // Modifica 'nombre avatar' según tu modelo de Users
+        const { propiedadId } = req.params;
+        if (!isValidId(propiedadId))
+            return res.status(400).json({ error: 'ID de propiedad inválido' });
 
-        if (!comentarios) {
-            return res.json({ reseñas: [], puntuacionFinal: 0 });
-        }
+        const page  = Math.max(1, parseInt(req.query.page)  || 1);
+        const limit = Math.min(50, parseInt(req.query.limit) || 10);
+        const skip  = (page - 1) * limit;
 
-        res.json(comentarios);
-    } catch (err) {
-        res.status(500).json({ error: 'Error al obtener las reseñas' });
-    }
+        const filtro = { propiedad: propiedadId, estado: 'visible' };
+
+        const [reseñas, total, promedio] = await Promise.all([
+            Comments.find(filtro)
+                .populate('usuarioComentario', 'nombre imagenPerfil')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Comments.countDocuments(filtro),
+            calcularPromedio(propiedadId)
+        ]);
+
+        res.json({
+            reseñas,
+            puntuacionFinal: promedio.puntuacionFinal,
+            totalReseñas:    total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        });
+    } catch (err) { next(err); }
 });
 
-// ==========================================
-// 3. RUTA: ELIMINAR UNA RESEÑA ESPECÍFICA
-// ==========================================
-router.delete('/:propertyId/reseña/:reviewId', verificarToken, async (req, res) => {
+// =========================================================
+// 3. GET — Solo promedio (endpoint liviano, útil para tarjetas)
+// =========================================================
+router.get('/:propiedadId/promedio', async (req, res, next) => {
     try {
-        const { propertyId, reviewId } = req.params;
-        const userId = req.usuario.id; // ID del usuario autenticado
-        const esAdmin = (req.usuario.rol === 'admin');
+        const { propiedadId } = req.params;
+        if (!isValidId(propiedadId))
+            return res.status(400).json({ error: 'ID inválido' });
 
-        // 1. Primero verificamos si la reseña existe y si el usuario tiene permiso para borrarla
-        const documentoOriginal = await Comments.findOne({ propiedad: propertyId });
-        if (!documentoOriginal) {
-            return res.status(404).json({ error: 'No se encontraron comentarios para esta propiedad' });
+        const data = await calcularPromedio(propiedadId);
+        res.json(data);
+    } catch (err) { next(err); }
+});
+
+// =========================================================
+// 4. PATCH — Editar respuesta del propietario
+// =========================================================
+router.patch('/reseña/:id/propietario', verificarToken, async (req, res, next) => {
+    try {
+        const { respuestaPropietario } = req.body;
+        const reseña = await Comments.findById(req.params.id);
+
+        if (!reseña) return res.status(404).json({ error: 'Reseña no encontrada' });
+
+        const inmueble = await Properties.findById(reseña.propiedad).select('propietario');
+        if (!inmueble) return res.status(404).json({ error: 'Inmueble no encontrado' });
+
+        const esDueño = inmueble.propietario.equals(req.usuario.id);
+        const esAdmin = req.usuario.rol === 'admin';
+        if (!esDueño && !esAdmin)
+            return res.status(403).json({ error: 'No tienes permisos' });
+
+        if (respuestaPropietario !== undefined) {
+            reseña.respuestaPropietario = {
+                texto: respuestaPropietario
+                
+            };
         }
 
-        // Buscamos la reseña específica dentro del array local de JavaScript
-        const reseñaAEliminar = documentoOriginal.reseñas.id(reviewId);
-        if (!reseñaAEliminar) {
-            return res.status(404).json({ error: 'La reseña no existe' });
-        }
+        await reseña.save();
+        await reseña.populate('usuarioComentario', 'nombre imagenPerfil');
 
-        // 🛡️ Ciberseguridad: Solo el dueño de la reseña o un administrador pueden borrarla
-        const esDueño = reseñaAEliminar.usuarioComentario.equals(userId);
-        if (!esDueño && !esAdmin) {
-            return res.status(403).json({ error: 'No tienes permisos para eliminar esta reseña' });
-        }
+        res.json({ mensaje: 'Respuesta actualizada', reseña });
+    } catch (err) { next(err); }
+});
 
-        // 2. 🔄 OPERACIÓN ATÓMICA: Sacamos la reseña del array usando $pull
-        const documentoActualizado = await Comments.findOneAndUpdate(
-            { propiedad: propertyId },
-            { $pull: { reseñas: { _id: reviewId } } }, // 👈 Elimina el subdocumento que coincida con este ID
-            { new: true }
-        );
+// =========================================================
+// 5. PATCH — Editar reseña
+// =========================================================
+router.patch('/reseña/:id', verificarToken, verificarDuenio(Comments, 'usuarioComentario', 'propiedad'), async (req, res, next) => {
+    try {
 
-        // 3. Volvemos a calcular el promedio de puntuación final con las reseñas que quedaron
-        const totalReseñas = documentoActualizado.reseñas.length;
-        
-        if (totalReseñas === 0) {
-            documentoActualizado.puntuacionFinal = 0;
+        const reseña = req.recurso; 
+        const { comentario, calificacion, imagenes } = req.body;
+
+        if (!isValidId(req.params.id))
+            return res.status(400).json({ error: 'ID inválido' });
+
+
+        if (comentario   !== undefined) reseña.comentario   = comentario;
+        if (calificacion !== undefined) reseña.calificacion = calificacion;
+        if (imagenes     !== undefined) reseña.imagenes     = imagenes;
+
+        await reseña.save();
+        await reseña.populate('usuarioComentario', 'nombre imagenPerfil');
+        const { puntuacionFinal, totalReseñas } = await calcularPromedio(reseña.propiedad);
+
+        res.json({ mensaje: 'Reseña actualizada',
+            reseña,
+            puntuacionFinal,
+            totalReseñas, });
+    } catch (err) { next(err); }
+});
+
+
+// =========================================================
+// 6. DELETE — Eliminar reseña
+// =========================================================
+router.delete('/reseña/:id', verificarToken, verificarDuenio(Comments, 'usuarioComentario', 'propiedad'), async (req, res, next) => {
+    try {
+        const recurso = req.recurso; 
+
+        if (!isValidId(req.params.id))
+            return res.status(400).json({ error: 'ID inválido' });
+
+
+        const propiedadId = recurso.propiedad;
+        await recurso.deleteOne();
+
+        const { puntuacionFinal, totalReseñas } = await calcularPromedio(propiedadId);
+
+        res.json({
+            mensaje: 'Reseña eliminada',
+            eliminado,
+            puntuacionFinal,
+            totalReseñas
+        });
+    } catch (err) { next(err); }
+});
+
+// =========================================================
+// 7. POST — Like / Unlike (toggle)
+// =========================================================
+router.post('/:reseñaId/like', verificarToken, async (req, res, next) => {
+    try {
+        const { reseñaId } = req.params;
+        const usuarioId = req.usuario.id;
+
+        if (!isValidId(reseñaId))
+            return res.status(400).json({ error: 'ID inválido' });
+
+        const reseña = await Comments.findById(reseñaId).select('+usuariosLike');
+        if (!reseña) return res.status(404).json({ error: 'Reseña no encontrada' });
+
+        const yaDioLike = reseña.usuariosLike.some(id => id.equals(usuarioId));
+
+        if (yaDioLike) {
+            reseña.usuariosLike.pull(usuarioId);
+            reseña.likes = Math.max(0, reseña.likes - 1);
         } else {
-            const sumaCalificaciones = documentoActualizado.reseñas.reduce((acc, curr) => acc + curr.calificacion, 0);
-            documentoActualizado.puntuacionFinal = parseFloat((sumaCalificaciones / totalReseñas).toFixed(1));
+            reseña.usuariosLike.push(usuarioId);
+            reseña.likes += 1;
         }
 
-        // Guardamos los cambios del nuevo promedio
-        await documentoActualizado.save();
-
-        res.json({ 
-            mensaje: 'Reseña eliminada correctamente', 
-            puntuacionFinal: documentoActualizado.puntuacionFinal,
-            reseñas: documentoActualizado.reseñas 
-        });
-
-    } catch (err) {
-        res.status(500).json({ error: 'Error al eliminar la reseña' });
-    }
+        await reseña.save();
+        res.json({ likes: reseña.likes, dioLike: !yaDioLike });
+    } catch (err) { next(err); }
 });
 
-module.exports = router;
+export default router;

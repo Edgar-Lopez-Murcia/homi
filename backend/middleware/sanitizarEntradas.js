@@ -1,4 +1,4 @@
-const xss = require('xss');
+import xss from 'xss';
 
 const sanitizarEntradas = (req, res, next) => {
     // Sanitizar body
@@ -28,4 +28,4 @@ const sanitizarEntradas = (req, res, next) => {
     next();
 };
 
-module.exports = sanitizarEntradas;
+export default sanitizarEntradas;

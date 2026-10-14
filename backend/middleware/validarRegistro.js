@@ -1,4 +1,4 @@
-const validator = require('validator');
+import validator from 'validator';
 
 const validarRegistro = (req, res, next) => {
     const { nombre, email, password, departamento, municipio } = req.body;
@@ -37,4 +37,4 @@ const validarRegistro = (req, res, next) => {
     next();
 };
 
-module.exports = validarRegistro;
+export default validarRegistro;

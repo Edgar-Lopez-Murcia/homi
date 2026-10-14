@@ -1,19 +1,18 @@
-const express   = require('express');
-const bcrypt    = require('bcryptjs');
-const jwt       = require('jsonwebtoken');
-const Usuario   = require('../models/Users');
-const validator = require('validator');
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import Usuario from '../models/Users.js';
+import validator from 'validator';
 
 const router = express.Router();
-const verificarToken = require('../middleware/auth');
-const verificarAdmin = require('../middleware/admin');
-const validarRegistro = require('../middleware/validarRegistro');
-const validarLogin = require('../middleware/validarLogin');
-const { limitadorLogin } = require('../middleware/limitadorPeticiones');
-const {limitadorCambioPassword} = require('../middleware/limitadorPeticiones')
+import verificarToken from '../middleware/auth.js';
+import validarRegistro from '../middleware/validarRegistro.js';
+import validarLogin from '../middleware/validarLogin.js';
+import { limitadorLogin } from '../middleware/limitadorPeticiones.js';
+import { limitadorCambioPassword } from '../middleware/limitadorPeticiones.js';
 
 // 2. POST /api/auth/registro - Crear cuenta nueva
-router.post('/registro',   validarRegistro, async (req, res) => {
+router.post('/registro',   validarRegistro, async (req, res, next) => {
     try {
         const { nombre, email, password, rol, 
             departamento, municipio, verificado } = req.body;
@@ -67,14 +66,12 @@ router.post('/registro',   validarRegistro, async (req, res) => {
         });
 
     } catch (err) {
-        res.status(400).json({
-            error: err.message
-        });
+        next(err)
     }
 });
 
 // 3. POST /api/auth/login - Iniciar sesión y recibir token
-router.post('/login', limitadorLogin, validarLogin,  async (req, res) => {
+router.post('/login', limitadorLogin, validarLogin,  async (req, res, next) => {
     try {
         const { email, password } = req.body;
 
@@ -122,128 +119,25 @@ router.post('/login', limitadorLogin, validarLogin,  async (req, res) => {
         });
 
     } catch (err) {
-        res.status(500).json({
-            error: err.message
-        });
+        next(err)
     }
 });
 
 // 4. Perfil
 
-router.get('/perfil', verificarToken, async (req, res) => {
+router.get('/perfil', verificarToken, async (req, res, next) => {
     try {
         // req.usuario.id viene del JWT decodificado por verificarToken
         // .select('-password') excluye el hash - NUNCA enviar la contraseña al frontend
         const usuario = await Usuario.findById(req.usuario.id).select('-password');
         if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
         res.json(usuario);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { next(err) }
 });
 
-// GET todos los usuarios — Público con filtros y PAGINACIÓN (Solo Admin)
-router.get('/analisis', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        const todos = await Usuario.countDocuments();
-        const { departamento, municipio, nombre, email, rol, estado, verificado, page = 1, limit = 20 } = req.query;
-        
-        const filtros = {}; 
-        if (departamento) filtros.departamento = departamento;
-        if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' }; 
-        if (rol) filtros.rol = rol;
-        if (nombre) filtros.nombre = { $regex: nombre, $options: 'i' }; // Opcional: Búsqueda inteligente por nombre
-        if (email) filtros.email = email;
-        if (estado) filtros.estado = estado; 
 
-        // REPARADO: Conversión estricta de string a booleano real para MongoDB
-        if (verificado !== undefined && verificado !== '') {
-            filtros.verificado = verificado === 'true'; 
-        }
 
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
-
-        // REPARADO: Agregamos .select('-password') para no filtrar los hashes por la red
-        const [usuarios, totalFiltrado] = await Promise.all([
-            Usuario.find(filtros)
-                .select('-password') 
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limitNum),
-            Usuario.countDocuments(filtros)
-        ]);
-        
-        res.json({
-            totalGlobal: todos,
-            totalFiltrado: totalFiltrado,
-            page: pageNum,
-            limit: limitNum,
-            totalPages: Math.ceil(totalFiltrado / limitNum),
-            usuarios // Corregido: el nombre semántico correcto es usuarios, no inmuebles
-        });
-    } catch (err) {
-        res.status(500).json({ error: 'Error al obtener los usuarios filtrados', detalle: err.message });
-    }
-});
-
-// GET - número de estadisticas 
-router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req, res) => {
-    try {
-        // 1. Recibimos las fechas desde la URL (ej: /estadisticas?fechaInicio=2026-01-01&fechaFin=2026-12-31)
-        const { fechaInicio, fechaFin } = req.query;
-        
-        // Creamos un objeto de filtro para la agregación
-        const filtroGlobal = {};
-
-        // Si el administrador envía fechas, armamos el rango usando el campo de Mongo "createdAt"
-        if (fechaInicio || fechaFin) {
-            filtroGlobal.createdAt = {};
-            if (fechaInicio) filtroGlobal.createdAt.$gte = new Date(fechaInicio); // $gte: Mayor o igual que
-            if (fechaFin) filtroGlobal.createdAt.$lte = new Date(fechaFin);       // $lte: Menor o igual que
-        }
-
-        // 2. Ejecutamos la agregación con el filtro de fechas al inicio
-        const estadisticas = await Usuario.aggregate([
-            // ETAPA 1: Filtrado de fechas inicial (Afecta a todo el proceso)
-            { $match: filtroGlobal },
-
-            // ETAPA 2: El Súper Agrupador protegido
-            {
-                $facet: {
-                    porEstado: [
-                        { $match: { estado: { $exists: true, $ne: null, $nin: ["", " "] } } },
-                        { $group: { _id: "$estado", cantidad: { $sum: 1 } } }
-                    ],
-                    porRol: [
-                        { $match: { rol: { $exists: true, $ne: null, $nin: ["", " "] } } },
-                        { $group: { _id: "$rol", cantidad: { $sum: 1 } } }
-                    ]
-                }
-            }
-        ]);
-
-        if (!estadisticas || estadisticas.length === 0) {
-            return res.json({ totalGlobal: 0, porEstado: [], porRol: [] });
-        }
-
-        // Tu línea se mantiene exactamente igual 
-        const { porEstado, porRol } = estadisticas[0];
-
-        // 3. Calculamos el total dinámico basado en lo que devolvieron los filtros
-        // Sumamos las cantidades de cualquiera de los grupos para saber el total de este período
-        const totalPeriodo = porEstado.reduce((acumulador, item) => acumulador + item.cantidad, 0);
-
-        res.json({
-            totalGlobal: totalPeriodo, // Ahora representa el total del período seleccionado
-            porEstado,  
-            porRol 
-        });
-
-    } catch (err) {
-        res.status(500).json({ error: 'Error al generar las estadísticas', detalle: err.message });
-    }
-});
-router.put('/perfil', verificarToken,  async (req, res) => {
+router.put('/perfil', verificarToken,  async (req, res, next) => {
     try {
 
         const {nombre, imagenPerfil, departamento, municipio  } = req.body;
@@ -272,11 +166,11 @@ router.put('/perfil', verificarToken,  async (req, res) => {
             perfil: modificacion, 
         });
     } catch (err) {
-        res.status(500).json({error: err.message})
+        next(err)
     }
 });
 
-router.put('/cambiar-password', verificarToken, limitadorCambioPassword, async (req,res) => {
+router.put('/cambiar-password', verificarToken, limitadorCambioPassword, async (req,res, next) => {
     try {
         const usuario = await Usuario.findById(req.usuario.id).select('password');
 
@@ -324,53 +218,13 @@ router.put('/cambiar-password', verificarToken, limitadorCambioPassword, async (
         });
         
     } catch (err) {
-        res.status(500).json({error: err.message})
+        next(err)
     }
 });
 
-router.put('/actualizar-verificacion/:id',verificarToken, verificarAdmin, async (req, res) => {
-    try{
 
-        const {tipoUsuario, verificado, estado} = req.body;
-        
-        // Validar tipoUsuario
-        if (tipoUsuario !== undefined && !['propietario', 'empresa', 'arrendatario'].includes(tipoUsuario)) {
-            return res.status(400).json({ error: 'tipoUsuario no es válido.' });
-        }
-        // Validar verificado
-        if (verificado !== undefined && typeof verificado !== 'boolean') {
-            return res.status(400).json({ error: 'verificado debe ser booleano.' });
-        }
-        // Validar estado
-        const estadosPermitidos = ['ACTIVE', 'SUSPENDED', 'RESTRICTED', 'BANNED', 'INACTIVE'];
-        if (estado !== undefined && !estadosPermitidos.includes(estado)) {
-            return res.status(400).json({ error: 'estado no es válido.' });
-        }
-        const camposActualizar = {};
 
-        if (tipoUsuario !== undefined) camposActualizar.tipoUsuario = tipoUsuario;
-        if (verificado !== undefined) camposActualizar.verificado = verificado;
-        if (estado !== undefined) camposActualizar.estado = estado;
-
-        const modificado = await Usuario.findByIdAndUpdate(
-            req.params.id,
-            camposActualizar,
-            {new: true, runValidators: true}
-        ).select('-password');
-
-        if (!modificado) {
-            return res.status(404).json({ error: 'La cuenta no existe'});
-        }
-        res.json({
-            mensaje: 'Perfil actualizado con exito por el administrador',
-            perfil: modificado
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message})
-    }
-}); 
-
-router.delete('/perfil/:id', verificarToken, async (req, res) => {
+router.delete('/perfil/:id', verificarToken, async (req, res, next) => {
     try{
 
         const esDuenio = (req.usuario.id === req.params.id);
@@ -389,10 +243,10 @@ router.delete('/perfil/:id', verificarToken, async (req, res) => {
             usuarioEliminado: eliminado.nombre
         });
     } catch (err) {
-        res.status(400).json({ error: err.message});
+        next(err)
     }
 });
 
 
 // 4. Exportar el router
-module.exports = router;
+export default router;

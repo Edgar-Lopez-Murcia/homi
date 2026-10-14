@@ -1,12 +1,13 @@
-const express = require('express');
-const Propiedad = require('../models/Properties');
+import express from 'express';
+import Propiedad from '../models/Properties.js';
 
 const router = express.Router();
-const verificarToken = require('../middleware/auth');
-const verificarAdmin = require('../middleware/admin');
-const verificarPublicante = require('../middleware/publicante');
-const crypto = require('crypto'); 
-const validarPropiedad = require('../middleware/validarPropiedad');
+import verificarToken from '../middleware/auth.js';
+import verificarAdmin from '../middleware/admin.js';
+import verificarPublicante from '../middleware/publicante.js';
+import verificarDuenio from '../middleware/verificarDuenio.js';
+import crypto from 'crypto';
+import validarPropiedad from '../middleware/validarPropiedad.js';
 
 
 // ============================================
@@ -14,7 +15,7 @@ const validarPropiedad = require('../middleware/validarPropiedad');
 // ============================================
 
 // GET todas las propiedades — Público con filtros y PAGINACIÓN 
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
     try {
         const { 
             departamento, codigoCorto, municipio, tipo, tipoAlquiler, 
@@ -116,24 +117,21 @@ router.get('/', async (req, res) => {
             inmuebles
         });
     } catch (err) {
-        res.status(500).json({ error: 'Error en la búsqueda avanzada de inmuebles', detalle: err.message });
+        next(err)
     }
 });
 
 
 
 // GET un inmueble por ID específico — Público
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req, res, next) => {
     try {
         const inmueble = await Propiedad.findById(req.params.id);
         if (!inmueble) return res.status(404).json({ error: 'Inmueble no encontrado' });
 
         res.json(inmueble);
     } catch (err) {
-        if (err.name === 'CastError') {
-            return res.status(400).json({ error: 'ID de inmueble inválido' });
-        }
-        res.status(500).json({ error: err.message });
+        next(err)
     } 
 });
 
@@ -142,7 +140,7 @@ router.get('/:id', async (req, res) => {
 // ============================================
 
 // GET mis inmuebles — Privado (Corrección del bug de búsqueda de Mongoose)
-router.get('/propios/mis-inmuebles', verificarToken, verificarPublicante, async (req, res) => {
+router.get('/propios/mis-inmuebles', verificarToken, verificarPublicante, async (req, res, next) => {
     try {
         const { departamento, municipio, tipo, tipoAlquiler, estado } = req.query;
         
@@ -159,12 +157,12 @@ router.get('/propios/mis-inmuebles', verificarToken, verificarPublicante, async 
         
         res.json(inmuebles);
     } catch (err) {
-        res.status(500).json({ error: 'Error al obtener tus inmuebles' });
+        next(err)
     }
 });
 
 // GET todas las propiedades — Público con filtros y PAGINACIÓN (Solo Admin)
-router.get('/analisis', verificarToken, verificarAdmin, async (req, res) => {
+router.get('/analisis', verificarToken, verificarAdmin, async (req, res, next) => {
     try {
         const todos = await Propiedad.countDocuments();
         const { departamento, estado, municipio, tipo, precioMax, tipoAlquiler, page = 1, limit = 20 } = req.query;
@@ -198,13 +196,13 @@ router.get('/analisis', verificarToken, verificarAdmin, async (req, res) => {
             inmuebles
         });
     } catch (err) {
-        res.status(500).json({ error: 'Error al obtener los inmuebles filtrados', detalle: err.message });
+        next(err)
     }
 });
 
 
 // GET - número de estadisticas 
-router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req, res) => {
+router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req, res, next) => {
     try {
         // 1. Recibimos las fechas desde la URL (ej: /estadisticas?fechaInicio=2026-01-01&fechaFin=2026-12-31)
         const { fechaInicio, fechaFin } = req.query;
@@ -258,14 +256,14 @@ router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req,
         });
 
     } catch (err) {
-        res.status(500).json({ error: 'Error al generar las estadísticas', detalle: err.message });
+        next(err)
     }
 });
 
 
 
 // POST crear inmueble — Convención REST limpia sin la palabra '/publicar'
-router.post('/', verificarToken, verificarPublicante, validarPropiedad, async (req, res) => {
+router.post('/', verificarToken, verificarPublicante, validarPropiedad, async (req, res, next) => {
     try {
         const codigoAleatorio = crypto.randomBytes(3).toString('hex').toUpperCase();
 
@@ -290,24 +288,12 @@ router.post('/', verificarToken, verificarPublicante, validarPropiedad, async (r
         const nuevo = await Propiedad.create(datosInmueble);
         res.status(201).json(nuevo);
     } catch (err) {
-        if (err.code === 11000) {
-            return res.status(400).json({ error: "Hubo un problema de unicidad con el código generado, por favor intenta enviar el formulario de nuevo." });
-        }
-        res.status(400).json({ error: err.message }); 
+        next(err)
     }
 });
 // PUT editar inmueble — Convención REST limpia sin la palabra '/editar'
-router.put('/:id', verificarToken, verificarPublicante, validarPropiedad,  async (req, res) => {
+router.put('/:id', verificarToken, verificarPublicante, verificarDuenio(Propiedad), validarPropiedad,  async (req, res) => {
     try {
-        const inmueble = await Propiedad.findById(req.params.id).select('propietario');
-        if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
-
-        const esDueño = inmueble.propietario.equals(req.usuario.id);
-        const esAdmin = req.usuario.rol === 'admin'; 
-
-        if (!esDueño && !esAdmin) {
-            return res.status(403).json({ error: 'No tienes permisos para editar esta publicación' });
-        }
 
         // Bloqueamos que intenten editar el codigoCorto manualmente desde el req.body
         delete req.body.codigoCorto;
@@ -319,45 +305,58 @@ router.put('/:id', verificarToken, verificarPublicante, validarPropiedad,  async
         );
         res.json(editar);
     } catch (err) {
-        if (err.name === 'CastError') return res.status(400).json({ error: 'ID de inmueble inválido' });
-        res.status(500).json({ error: err.message });
+        next(err)
     }
 });
 
-router.put('/:id/agregar-areas', verificarToken, verificarPublicante,  async (req, res) => {
+router.put('/:id/agregar-areas', verificarToken, verificarPublicante, verificarDuenio(Propiedad, 'propietario', 'zonas areas'), async (req, res, next) => {
     try {
-        const inmueble = await Propiedad.findById(req.params.id).select('propietario zonas');
-        if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
+        const inmueble = req.recurso; 
 
-        const esDueño = inmueble.propietario.equals(req.usuario.id);
-        const esAdmin = req.usuario.rol === 'admin';
-        if (!esDueño && !esAdmin) return res.status(403).json({ error: 'No tienes permisos para editar esta publicación' });
+        const { nuevasAreas, tipoZona } = req.body;
 
-        const { nuevasAreas, tipoZona } = req.body; 
-        
-        // Validamos que venga una lista real de áreas
-        if (!nuevasAreas || !Array.isArray(nuevasAreas) || nuevasAreas.length === 0 || !tipoZona) {
-            return res.status(400).json({ error: "Debe enviar una lista 'nuevasAreas' y el 'tipoZona'." });
+        // Validar tipoZona
+        const zonasPermitidas = ['Exterior', 'Cocina', 'Baño', 'habitación', 'Cuarto de lavado', 
+            'Vestidor', 'Bodega', 'Sala de estar', 'Comedor', 'Cuarto de estudio', 'Piso',
+            'Patio interior', 'Terraza', 'otros'];
+        if (!tipoZona || !zonasPermitidas.includes(tipoZona)) {
+            return res.status(400).json({ error: "El 'tipoZona' no es válido." });
         }
 
-        // Sabremos cuántas áreas está agregando de golpe (ej: 3 baños = cantidadAIncrementar es 3)
-        const cantidadAIncrementar = nuevasAreas.length;
+        // Validar estructura de nuevasAreas
+        if (!nuevasAreas || !Array.isArray(nuevasAreas) || nuevasAreas.length === 0) {
+            return res.status(400).json({ error: "Debe enviar una lista 'nuevasAreas' con al menos un elemento." });
+        }
 
+        for (const area of nuevasAreas) {
+            if (!area.nombre || !area.imagen1) {
+                return res.status(400).json({ error: "Cada área debe tener 'nombre' e 'imagen1'." });
+            }
+            if (!validator.isURL(area.imagen1, { require_protocol: true })) {
+                return res.status(400).json({ error: `La URL de la imagen del área '${area.nombre}' no es válida.` });
+            }
+        }
+
+        // Limitar número total de áreas (ej. máximo 50)
+        const totalAreasActuales = inmueble.areas ? inmueble.areas.length : 0;
+        if (totalAreasActuales + nuevasAreas.length > 50) {
+            return res.status(400).json({ error: "No puedes agregar más de 50 áreas en total." });
+        }
+
+        const cantidadAIncrementar = nuevasAreas.length;
         const existeZona = inmueble.zonas.some(z => z.nombreZona === tipoZona);
         let inmuebleActualizado;
 
         if (existeZona) {
-            // CASO A: La zona existe -> Insertamos todas las áreas ($each) e incrementamos el número exacto
             inmuebleActualizado = await Propiedad.findOneAndUpdate(
                 { _id: req.params.id, "zonas.nombreZona": tipoZona },
                 { 
-                    $push: { areas: { $each: nuevasAreas } }, // 🔥 $each mete toda la lista de golpe
-                    $inc: { "zonas.$.cantidad": cantidadAIncrementar } // 🔥 Suma +3, o +2, según corresponda
+                    $push: { areas: { $each: nuevasAreas } },
+                    $inc: { "zonas.$.cantidad": cantidadAIncrementar }
                 },
                 { new: true, runValidators: true }
             );
         } else {
-            // CASO B: La zona NO existe -> Insertamos las áreas y CREAMOS la zona con la cantidad inicial exacta
             inmuebleActualizado = await Propiedad.findByIdAndUpdate(
                 req.params.id,
                 { 
@@ -371,12 +370,11 @@ router.put('/:id/agregar-areas', verificarToken, verificarPublicante,  async (re
         }
 
         res.json(inmuebleActualizado);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { next(err) }
 });
 
-
 // ELIMINAR UNA SOLA ÁREA POR SU ID DE SUBESQUEMA
-router.put('/:id/eliminar-area/:areaId/:nombreZona', verificarToken, verificarPublicante, async (req, res) => {
+router.put('/:id/eliminar-area/:areaId/:nombreZona', verificarToken, verificarPublicante, async (req, res, next) => {
     try {
         const inmueble = await Propiedad.findById(req.params.id).select('propietario zonas');
         if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
@@ -421,13 +419,13 @@ router.put('/:id/eliminar-area/:areaId/:nombreZona', verificarToken, verificarPu
         }
 
         res.json({ mensaje: "Área eliminada y catálogo de zonas optimizado", inmuebleActualizado });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { next(err) }
 });
 
 
 
 // DELETE eliminar inmueble — Convención REST limpia sin la palabra '/eliminar'
-router.delete('/:id', verificarToken, verificarPublicante, async (req, res) => {
+router.delete('/:id', verificarToken, verificarPublicante, async (req, res, next) => {
     try {
         const inmueble = await Propiedad.findById(req.params.id).select('propietario');
         if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
@@ -442,10 +440,7 @@ router.delete('/:id', verificarToken, verificarPublicante, async (req, res) => {
         const eliminado = await Propiedad.findByIdAndDelete(req.params.id);
         res.json({ mensaje: 'Inmueble eliminado correctamente', eliminado });
     } catch (err) {
-        if (err.name === 'CastError') {
-            return res.status(400).json({ error: 'ID de inmueble inválido' });
-        }
-        res.status(500).json({ error: err.message });
+        next(err)
     }
 });
 
@@ -453,4 +448,4 @@ router.delete('/:id', verificarToken, verificarPublicante, async (req, res) => {
 
 
 
-module.exports = router;
+export default router;

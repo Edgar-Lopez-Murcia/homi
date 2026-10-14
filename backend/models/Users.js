@@ -1,5 +1,5 @@
 // 1. Importar Mongoose
-const { Schema, model } = require('mongoose');
+import { Schema, model } from 'mongoose';
 
 // 2. sub-esquema de favoritos 
 const favoritoSchema = new Schema({ 
@@ -37,4 +37,4 @@ const usuarioSchema = new Schema({
 
 // 4. Exportar el Model
 const Users = model('Users', usuarioSchema);
-module.exports = Users;
+export default Users;

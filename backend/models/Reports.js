@@ -1,4 +1,4 @@
-const {Schema, model} = require('mongoose')
+import { Schema, model } from 'mongoose';
 
 const reportesSchema = new Schema ({
     usuarioReporte: {
@@ -34,4 +34,4 @@ const reportesSchema = new Schema ({
 
 
 const Reports = model('Reports', reportesSchema);
-module.exports = Reports;
+export default Reports;

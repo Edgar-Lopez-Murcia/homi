@@ -5,6 +5,23 @@ Este documento sirve como guía paso a paso para el futuro, cuando decidas activ
 ---
 
 ## Tareas Rapidas quse deben hacer:
+
+crearemos dos modelos para la mensageria:
+modelo 1: encargado de almacenar a los dos usuarios, despues aremos que busque de forma
+rapida a los dos usuarios dependiendo de su cuneta, este modelo debe tener el estado
+como activo, restringido, eliminado, y demas con su fecha de creacion y edicion.
+
+modelo 2. aqui se almacenaran los mensajes por dia (dependiendo de lo que dise la IA), creo que con un maximo de 100 mensajes o mas por dia, estdos de visualisado y demas o borrado 
+
+crearemos una parte de notificaciones para los usuarios
+###     Crear modelo de cuentas eliminadas
+crear un modelo donde guarde alguna información personal de la cuenta antes de eliminarla,
+no toda la información, solamente la necesaria como por ejemplo el email y el estado en el que se 
+encontraba la cuenta antes de ser eliminada como por ejemplo si estaba restringida o baneada y
+cunatos reportes tenia para haci si intenta registrarse con el mismo correo no pueda hacerlo
+de forma sencilla
+
+
 ### Crear un modelo de ducmentos
 En este modelo Crear un modelo Verificaciones o Documentos que guarde:
 
@@ -19,6 +36,13 @@ estado (pendiente, aprobado, rechazado).
 fechaSubida.
 
 Este modelo nos ayudara a verificar a los usuarios que quieran convertirse en propietarios
+
+### sub-esquema del modelo dedocumentos
+
+deberian ser dos modelos aparte a crear los documentos que permitiran ya sea al usuario normal
+o a la empresa poer siertos documentos segun lo requieran, ya con las empresas se podran
+mas estrictas las cosas pero con mayores veneficios
+---
 
 ## 🧐 1. Entendiendo el Problema y la Solución (Explicación Sencilla)
 
@@ -247,3 +271,83 @@ router.post('/restablecer-password', limitadorLogin, async (req, res) => {
 *   **Bloqueo de Inyección de Tipo (`typeof !== 'string'`):** Si el hacker intenta mandar `codigo: [1234, 5678, 9012]` para tratar de adivinar múltiples combinaciones en una sola petición, el código lo frena en la primera línea de ejecución devolviendo un Error 400.
 *   **Contador de Destrucción de Sesión (`intentosRecuperacion`):** Si usan un script para adivinar el código de 6 dígitos (haciendo peticiones consecutivas rápidamente), el usuario se bloqueará automáticamente al quinto fallo, obligándolos a generar otro código y rompiendo el ataque automatizado.
 *   **Éxito Simulado:** Al responder exactamente lo mismo si el correo existe o no en la ruta de solicitud, impides que los atacantes usen tu API para validar bases de datos de correos robados de internet.
+
+---
+
+### recomendaciones de la IA.
+5. Recomendaciones de Seguridad Avanzada para tu Backend (Node.js/Express)
+Como quieres que sea difícil de hackear, además de lo básico (JWT, bcrypt, sanitización), te recomiendo implementar:
+
+Helmet: Ya lo tienes? No lo vi en las dependencias, pero es crucial. Añade helmet para configurar cabeceras HTTP de seguridad (CSP, HSTS, etc.).
+
+Rate Limiting: Veo que tienes express-rate-limit. Asegúrate de aplicarlo globalmente y con límites más estrictos en rutas de login y registro (ej. 5 intentos por 15 min).
+
+Validación de Esquemas: No confíes en el frontend. Usa express-validator o joi para validar cada campo que entra al backend.
+
+Manejo de Errores Centralizado: Crea un middleware que capture todos los errores y no devuelva stack traces en producción.
+
+CORS Estricto: Configura cors para que solo acepte peticiones de tu dominio frontend (no *).
+
+Variables de Entorno: Nunca subas tus claves de Mongo, JWT o Backblaze a GitHub. Usa .env y dotenv.
+
+Sanitización contra NoSQL Injection: Mongoose ya ayuda, pero usa express-mongo-sanitize para limpiar $ y . en los inputs.
+
+Encriptación de Datos Sensibles: Si guardas números de documento, considera encriptarlos en la base de datos (aunque Mongoose no lo hace por defecto, puedes usar un plugin o hacerlo manualmente).
+
+# 📁 Gestión de Carga y Optimización de Imágenes en el Backend
+
+Este documento detalla el flujo arquitectónico profesional para la recepción, optimización y almacenamiento de imágenes pesadas utilizando **Multer**, **Sharp** y **Backblaze B2**, asegurando la protección del servidor.
+
+---
+
+## 🛡️ La Regla de Oro: Separación de Restricciones
+
+El límite configurado en Express (`app.use(express.json({ limit: '10mb' }))`) solo afecta a las peticiones con formato de texto plano **JSON**. 
+
+Las imágenes viajan en formato **`multipart/form-data`**, por lo tanto, no son afectadas por el límite de Express. Quien se encarga de controlar y recibir las imágenes de forma independiente es **Multer**.
+
+---
+
+## ⚙️ Configuración Correcta de Restricciones en Multer
+
+Para evitar que los usuarios suban archivos absurdamente gigantescos (como videos o imágenes sin comprimir de 100MB) que saturen la memoria RAM, debes aplicar la propiedad `limits` directamente en la configuración de Multer.
+
+A continuación se detalla cómo estructurar el middleware de subida utilizando almacenamiento en memoria RAM (`memoryStorage`) para su posterior manipulación:
+
+```javascript
+const multer = require('multer');
+
+// 1. Guardar temporalmente el archivo en la memoria RAM como un Buffer de bytes
+const almacenamiento = multer.memoryStorage();
+
+// 2. Definir filtros de seguridad (Opcional pero recomendado: solo imágenes)
+const filtroFormatos = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true); // Aceptar el archivo
+    } else {
+        cb(new Error('El archivo no es una imagen válida'), false); // Rechazar
+    }
+};
+
+// 3. Configurar Multer con la restricción de tamaño exacta
+const upload = multer({
+    storage: almacenamiento,
+    fileFilter: filtroFormatos,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 🔥 Límite estricto: 10 Megabytes por archivo individual
+    }
+});
+
+module.exports = upload;
+```
+
+---
+
+## 🔄 Flujo de Trabajo Secuencial (Pipeline)
+
+Cuando un cliente envía un formulario con datos del inmueble y fotografías, el backend procesa la petición en 4 pasos ordenados:
+
+1. **Recepción (Multer):** Intercepta los archivos en formato `multipart/form-data` y verifica que cumplan con el límite asignado (ej. máximo 10MB por foto). Si el archivo es válido, lo expone en memoria dentro de `req.file` o `req.files`.
+2. **Optimización (Sharp):** Toma los bytes crudos guardados en la memoria RAM. Redimensiona las medidas de la imagen (ej: ancho máximo de 1200px) y la transforma al formato moderno **`.webp`**. En este punto, una foto original de 6MB se reduce drásticamente a un archivo ultra ligero de aproximadamente **300KB** sin pérdida perceptible de calidad.
+3. **Persistencia en la Nube (@aws-sdk/client-s3):** Se toman los bytes optimizados entregados por Sharp y se suben directamente al contenedor de **Backblaze B2** utilizando la API de compatibilidad S3 de Amazon.
+4. **Registro en la Base de Datos (Mongoose):** Una vez finalizada la subida, Backblaze retorna una **URL en formato String**. El backend inyecta esa URL en el cuerpo de la petición y finalmente guarda el registro del inmueble en MongoDB usando un tamaño insignificante de almacenamiento en texto.

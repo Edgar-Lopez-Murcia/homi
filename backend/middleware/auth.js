@@ -1,5 +1,5 @@
 // Librería oficial para crear y verificar tokens JWT
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 // Middleware que verifica el token JWT en el header Authorization
 function verificarToken(req, res, next) {
@@ -26,12 +26,7 @@ function verificarToken(req, res, next) {
         next();
 
     } catch (err) {
-        console.error('Error verificando token:', err.message);
-
-        res.status(403).json({
-            error: 'Token inválido o expirado'
-        });
+        next(err)
     }
 }
-
-module.exports = verificarToken;
+export default verificarToken;
