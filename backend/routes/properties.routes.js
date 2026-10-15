@@ -40,6 +40,41 @@ router.get('/', async (req, res, next) => {
                         query: { estado: 'disponible' } // Filtros adicionales aquí
                     }
                 },
+                {
+                    $lookup: {
+                        from: "usuarios", // <-- ¡OJO! Debe ser el nombre exacto de la colección en la Base de Datos (usualmente en plural)
+                        localField: "propietario",
+                        foreignField: "_id",
+                        as: "propietario"
+                    }
+                },
+                // 2. Convertir el array de propietario que devuelve $lookup en un solo objeto
+                {
+                    $unwind: {
+                        path: "$propietario",
+                        preserveNullAndEmptyArrays: true // Por si alguna propiedad se quedó sin propietario asignado
+                    }
+                },
+                // 3. Moldear la respuesta para traer solo el nombre e imagenPerfil del propietario, manteniendo los demás campos del inmueble
+                {
+                    $project: {
+                        // Mantiene todos los campos originales del inmueble de forma dinámica
+                        document: "$$ROOT", 
+                        // Sobrescribe el campo propietario para que solo tenga los datos que quieres
+                        "propietario": {
+                            nombre: "$propietario.nombre",
+                            imagenPerfil: "$propietario.imagenPerfil"
+                        }
+                    }
+                },
+                // Reestructuramos el documento para limpiar el prefijo de $$ROOT
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: ["$document", { propietario: "$propietario" }]
+                        }
+                    }
+                },
                 { $skip: skip },
                 { $limit: limitNum }
             ];
@@ -105,7 +140,10 @@ router.get('/', async (req, res, next) => {
         }
 
         const [inmuebles, total] = await Promise.all([
-            Propiedad.find(filtros).skip(skip).limit(limitNum),
+            Propiedad.find(filtros)
+                .populate('propietario', 'nombre imagenPerfil')
+                .skip(skip)
+                .limit(limitNum),
             Propiedad.countDocuments(filtros)
         ]);
 
