@@ -27,12 +27,14 @@ import authRoutes from './routes/auth.js';
 import propertiesRoutes from './routes/properties.routes.js';
 import commentsRoutes from './routes/comments.routes.js';
 import likesRoutes from './routes/likes.routes.js';
+import infractionsRoutes from './routes/infractions.routes.js';
 
 // 5. Manejo de rutas
 app.use('/api/auth', authRoutes);    
 app.use('/api/properties', propertiesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/likes', likesRoutes);
+app.use('/api/infractions', infractionsRoutes);
 
 
 // 6. Si la petición llega hasta este punto, significa que ninguna ruta de arriba la atrapó.

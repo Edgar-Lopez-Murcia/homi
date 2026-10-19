@@ -463,19 +463,10 @@ router.put('/:id/eliminar-area/:areaId/:nombreZona', verificarToken, verificarPu
 
 
 // DELETE eliminar inmueble — Convención REST limpia sin la palabra '/eliminar'
-router.delete('/:id', verificarToken, verificarPublicante, async (req, res, next) => {
+router.delete('/:id', verificarToken, verificarPublicante, verificarDuenio(Propiedad), async (req, res, next) => {
     try {
-        const inmueble = await Propiedad.findById(req.params.id).select('propietario');
-        if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
-
-        const esDueño = inmueble.propietario.equals(req.usuario.id);
-        const esAdmin = req.usuario.rol === 'admin';
-
-        if (!esDueño && !esAdmin) {
-            return res.status(403).json({ error: 'No tienes permisos para eliminar esta publicación' });
-        }
-
-        const eliminado = await Propiedad.findByIdAndDelete(req.params.id);
+        const eliminado = req.recurso;
+        await eliminado.deleteOne()
         res.json({ mensaje: 'Inmueble eliminado correctamente', eliminado });
     } catch (err) {
         next(err)

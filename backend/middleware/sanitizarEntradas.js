@@ -43,6 +43,7 @@ const sanitizarEntradas = (req, res, next) => {
             enumerable: true
         });
     }
+    if (req.params) req.params = limpiar(req.params);
     next();
 };
 

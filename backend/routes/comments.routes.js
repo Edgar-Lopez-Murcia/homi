@@ -203,7 +203,7 @@ router.delete('/reseña/:id', verificarToken, verificarDuenio(Comments, 'usuario
 
         res.json({
             mensaje: 'Reseña eliminada',
-            eliminado,
+            recurso,
             puntuacionFinal,
             totalReseñas
         });
