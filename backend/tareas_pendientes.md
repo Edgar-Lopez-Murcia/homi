@@ -8,7 +8,7 @@ Este documento sirve como guía paso a paso para el futuro, cuando decidas activ
 
 crearemos dos modelos para la mensageria:
 modelo 1: encargado de almacenar a los dos usuarios, despues aremos que busque de forma
-rapida a los dos usuarios dependiendo de su cuneta, este modelo debe tener el estado
+rapida a los dos usuarios dependiendo de su cuenta, este modelo debe tener el estado
 como activo, restringido, eliminado, y demas con su fecha de creacion y edicion.
 
 modelo 2. aqui se almacenaran los mensajes por dia (dependiendo de lo que dise la IA), creo que con un maximo de 100 mensajes o mas por dia, estdos de visualisado y demas o borrado 

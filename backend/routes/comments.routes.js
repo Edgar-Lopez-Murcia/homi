@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Comments from '../models/Comments.js';
 import Properties from '../models/Properties.js';
 import verificarToken from '../middleware/auth.js';
+import verificarUsuario from '../middleware/usuario.js';
 import verificarDuenio from '../middleware/verificarDuenio.js';
 
 const router = express.Router();
@@ -32,7 +33,7 @@ async function calcularPromedio(propiedadId) {
 // =========================================================
 // 1. POST — Crear reseña
 // =========================================================
-router.post('/:propiedadId', verificarToken, async (req, res, next) => {
+router.post('/:propiedadId', verificarToken, verificarUsuario, async (req, res, next) => {
     try {
         const { propiedadId } = req.params;
         const { comentario, calificacion, imagenes } = req.body;

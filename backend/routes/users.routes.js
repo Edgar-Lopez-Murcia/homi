@@ -1,5 +1,5 @@
 import express from 'express';
-import Usuario from '../models/Users.js';
+import Users from '../models/Users.js';
 
 const router = express.Router();
 import verificarToken from '../middleware/auth.js';
@@ -8,7 +8,7 @@ import verificarAdmin from '../middleware/admin.js';
 // GET todos los usuarios — Público con filtros y PAGINACIÓN (Solo Admin)
 router.get('/analisis', verificarToken, verificarAdmin, async (req, res, next) => {
     try {
-        const todos = await Usuario.countDocuments();
+        const todos = await Users.countDocuments();
         const { departamento, municipio, nombre, email, rol, estado, verificado, page = 1, limit = 20 } = req.query;
         
         const filtros = {}; 
@@ -30,12 +30,12 @@ router.get('/analisis', verificarToken, verificarAdmin, async (req, res, next) =
 
         // REPARADO: Agregamos .select('-password') para no filtrar los hashes por la red
         const [usuarios, totalFiltrado] = await Promise.all([
-            Usuario.find(filtros)
+            Users.find(filtros)
                 .select('-password') 
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limitNum),
-            Usuario.countDocuments(filtros)
+            Users.countDocuments(filtros)
         ]);
         
         res.json({
@@ -68,7 +68,7 @@ router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req,
         }
 
         // 2. Ejecutamos la agregación con el filtro de fechas al inicio
-        const estadisticas = await Usuario.aggregate([
+        const estadisticas = await Users.aggregate([
             // ETAPA 1: Filtrado de fechas inicial (Afecta a todo el proceso)
             { $match: filtroGlobal },
 
@@ -134,7 +134,7 @@ router.put('/actualizar-verificacion/:id',verificarToken, verificarAdmin, async 
         if (verificado !== undefined) camposActualizar.verificado = verificado;
         if (estado !== undefined) camposActualizar.estado = estado;
 
-        const modificado = await Usuario.findByIdAndUpdate(
+        const modificado = await Users.findByIdAndUpdate(
             req.params.id,
             camposActualizar,
             {new: true, runValidators: true}

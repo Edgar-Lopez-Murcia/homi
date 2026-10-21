@@ -19,11 +19,11 @@ const validarInfraccion = (req, res, next) => {
         req.body.diasSuspencion = diasNum;
     };
 
-    if (multa === undefined || diasSuspencion === null) {
+    if (multa === undefined || multa === null) {
         return res.status(400).json({ error: "La 'multa' es obligatorios." });
     } else {
         const multaNum = Number(multa);
-        if (isNaN(multaNum) || multaNum < 0) return res.status(400).json({ error: "los 'dias de suspencion' deben ser un número mayor o igual a cero." });
+        if (isNaN(multaNum) || multaNum < 0) return res.status(400).json({ error: "la 'multa' debe ser un número mayor o igual a cero." });
         req.body.multa = multaNum;
     }
 

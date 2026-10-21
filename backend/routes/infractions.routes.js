@@ -12,11 +12,17 @@ router.get('/', verificarToken, async (req, res, next) => {
 
         const filtro = {};
         if (gravedad) filtro.gravedad = gravedad;
-        if (diasSuspencion) filtro.diasSuspencion.$lte = Number(diasSuspencion);
-        if (multa) filtro.multa.$lte = Number(multa);
+        if (diasSuspencion) filtro.diasSuspencion = { $lte: Number(diasSuspencion) };
+        if (multa) filtro.multa = { $lte: Number(multa) };
+
+        let camposSeleccionados = 'nombre descripcion';
+        const esAdmin = req.usuario?.rol === 'admin';
+        if (esAdmin) {
+            camposSeleccionados = ''; 
+        }
 
         const [infraccion, total] = await Promise.all([
-            Infractions.find(filtro),
+            Infractions.find(filtro).select(camposSeleccionados),
             Infractions.countDocuments(filtro)
         ]);
         res.json(infraccion, total);

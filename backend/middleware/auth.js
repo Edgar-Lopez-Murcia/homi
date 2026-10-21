@@ -18,7 +18,11 @@ function verificarToken(req, res, next) {
 
         if (!decoded.id || !decoded.rol) {
             return res.status(403).json({ error: 'Token inválido - estructura incorrecta' });
-        }
+        };
+
+        if (decoded.estado === 'BANNED') {
+        return res.status(403).json({ error: 'Esta cuenta ha sido expulsada permanentemente del sistema.' });
+        };
 
 
         req.usuario = decoded;

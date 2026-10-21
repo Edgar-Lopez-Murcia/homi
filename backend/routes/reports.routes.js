@@ -5,7 +5,7 @@ import verificarAdmin from '../middleware/admin.js';
 
 const router = express.Router();
 
-router.get('/', verificarToken, async (req, res, next) => {
+router.get('/', verificarToken, verificarAdmin, async (req, res, next) => {
     try {
         const {estado, page = 1, limit = 20} = req.query;
 
