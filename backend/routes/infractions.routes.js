@@ -8,26 +8,45 @@ const router = express.Router();
 
 router.get('/', verificarToken, async (req, res, next) => {
     try {
-        const {gravedad, diasSuspencion, multa } = req.query;
+        const { gravedad, diasSuspension, multa, page = 1, limit = 20 } = req.query;
+
+
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+        const skip = (pageNum - 1) * limitNum;
 
         const filtro = {};
         if (gravedad) filtro.gravedad = gravedad;
-        if (diasSuspencion) filtro.diasSuspencion = { $lte: Number(diasSuspencion) };
+        
+        if (diasSuspension) filtro.diasSuspension = { $lte: Number(diasSuspension) };
         if (multa) filtro.multa = { $lte: Number(multa) };
+
 
         let camposSeleccionados = 'nombre descripcion';
         const esAdmin = req.usuario?.rol === 'admin';
+        
         if (esAdmin) {
-            camposSeleccionados = ''; 
+            camposSeleccionados = ''; // Admin ve todo
         }
 
-        const [infraccion, total] = await Promise.all([
-            Infractions.find(filtro).select(camposSeleccionados),
+        const [infracciones, total] = await Promise.all([
+            Infractions.find(filtro)
+                .select(camposSeleccionados)
+                .skip(skip)
+                .limit(limitNum),
             Infractions.countDocuments(filtro)
         ]);
-        res.json(infraccion, total);
+
+        res.json({
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil(total / limitNum),
+            infracciones 
+        });
+
     } catch (err) {
-        next(err)
+        next(err);
     }
 });
 

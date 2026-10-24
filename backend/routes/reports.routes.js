@@ -30,3 +30,13 @@ router.get('/', verificarToken, verificarAdmin, async (req, res, next) => {
         next(err)
     }
 });
+
+router.delete('/:id', verificarToken, verificarAdmin, async (req, res, next) => {
+    try {
+        const eliminar = await Reports.findByIdAndDelete(req.params);
+        res.json(eliminar)
+        
+    } catch (err) {
+        next(err)
+    }
+})

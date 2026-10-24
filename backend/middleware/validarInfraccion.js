@@ -1,5 +1,5 @@
 const validarInfraccion = (req, res, next) => {
-    const {nombre, descripcion, gravedad, diasSuspencion, multa} = req.body;
+    const {nombre, descripcion, gravedad, diasSuspension, multa} = req.body;
 
     const gravedadesPermitidas = ['pequeña', 'leve', 'moderada', 'grave', 'critica']
 
@@ -11,12 +11,12 @@ const validarInfraccion = (req, res, next) => {
     }
     if (!gravedad || !gravedadesPermitidas.includes(gravedad.toLowerCase())) return res.status(400).json({ error: "la gravedad no es válido." });
 
-    if (diasSuspencion === undefined || diasSuspencion === null) {
+    if (diasSuspension === undefined || diasSuspension === null) {
         return res.status(400).json({ error: "Los 'dias de suspencion' son obligatorios." });
     } else {
-        const diasNum = Number(diasSuspencion);
+        const diasNum = Number(diasSuspension);
         if (isNaN(diasNum) || diasNum < 0) return res.status(400).json({ error: "los 'dias de suspencion' deben ser un número mayor o igual a cero." });
-        req.body.diasSuspencion = diasNum;
+        req.body.diasSuspension = diasNum;
     };
 
     if (multa === undefined || multa === null) {

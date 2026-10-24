@@ -21,7 +21,7 @@ router.get('/', verificarToken, verificarAdmin, async (req, res, next) => {
         const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
         const skip = (pageNum - 1) * limitNum;
         
-        const [repostes, totalFiltrado] = await Promise.all([
+        const [repostes, totalFiltrado] = await owners.all([
             owners.find(filtros)
                 .populate('usuario', 'nombre imagenPerfil')
                 .sort({ createdAt: -1 })

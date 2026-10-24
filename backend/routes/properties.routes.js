@@ -7,6 +7,7 @@ import verificarAdmin from '../middleware/admin.js';
 import verificarPublicante from '../middleware/publicante.js';
 import verificarDuenio from '../middleware/verificarDuenio.js';
 import crypto from 'crypto';
+import { getProperties } from '../controllers/properties.controller.js';
 import validarPropiedad from '../middleware/validarPropiedad.js';
 
 
@@ -15,149 +16,7 @@ import validarPropiedad from '../middleware/validarPropiedad.js';
 // ============================================
 
 // GET todas las propiedades — Público con filtros y PAGINACIÓN 
-router.get('/', async (req, res, next) => {
-    try {
-        const { 
-            departamento, codigoCorto, municipio, tipo, tipoAlquiler, 
-            precioMin, precioMax, habitacionesMin, bañosMin,
-            lat, lng, distanciaMax = 5000,
-            page = 1, limit = 20 
-        } = req.query;
-
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
-
-        // Si hay búsqueda geográfica, usamos agregación
-        if (lat && lng) {
-            const pipeline = [
-                {
-                    $geoNear: {
-                        near: { type: "Point", coordinates: [Number(lng), Number(lat)] },
-                        distanceField: "distancia",
-                        maxDistance: Number(distanciaMax),
-                        spherical: true,
-                        query: { estado: 'disponible' } // Filtros adicionales aquí
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "usuarios", // <-- ¡OJO! Debe ser el nombre exacto de la colección en la Base de Datos (usualmente en plural)
-                        localField: "propietario",
-                        foreignField: "_id",
-                        as: "propietario"
-                    }
-                },
-                // 2. Convertir el array de propietario que devuelve $lookup en un solo objeto
-                {
-                    $unwind: {
-                        path: "$propietario",
-                        preserveNullAndEmptyArrays: true // Por si alguna propiedad se quedó sin propietario asignado
-                    }
-                },
-                // 3. Moldear la respuesta para traer solo el nombre e imagenPerfil del propietario, manteniendo los demás campos del inmueble
-                {
-                    $project: {
-                        // Mantiene todos los campos originales del inmueble de forma dinámica
-                        document: "$$ROOT", 
-                        // Sobrescribe el campo propietario para que solo tenga los datos que quieres
-                        "propietario": {
-                            nombre: "$propietario.nombre",
-                            imagenPerfil: "$propietario.imagenPerfil"
-                        }
-                    }
-                },
-                // Reestructuramos el documento para limpiar el prefijo de $$ROOT
-                {
-                    $replaceRoot: {
-                        newRoot: {
-                            $mergeObjects: ["$document", { propietario: "$propietario" }]
-                        }
-                    }
-                },
-                { $skip: skip },
-                { $limit: limitNum }
-            ];
-
-            const inmuebles = await Properties.aggregate(pipeline);
-            
-            // Para el total, hacemos un count con $geoNear
-            const totalPipeline = [
-                {
-                    $geoNear: {
-                        near: { type: "Point", coordinates: [Number(lng), Number(lat)] },
-                        distanceField: "distancia",
-                        maxDistance: Number(distanciaMax),
-                        spherical: true,
-                        query: { estado: 'disponible' }
-                    }
-                },
-                { $count: "total" }
-            ];
-            const totalResult = await Properties.aggregate(totalPipeline);
-            const total = totalResult.length > 0 ? totalResult[0].total : 0;
-
-            return res.json({
-                total,
-                page: pageNum,
-                limit: limitNum,
-                totalPages: Math.ceil(total / limitNum),
-                inmuebles
-            });
-        }
-
-        // Búsqueda normal sin geolocalización
-        let filtros = {};
-        if (codigoCorto) {
-            filtros = { codigoCorto: codigoCorto.toUpperCase().trim() };
-        } else {
-            filtros.estado = 'disponible';
-            if (departamento) filtros.departamento = departamento;
-            if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' };
-            if (tipo) filtros.tipo = tipo;
-            if (tipoAlquiler) filtros.tipoAlquiler = tipoAlquiler;
-            if (precioMin || precioMax) {
-                filtros.precio = {};
-                if (precioMin) filtros.precio.$gte = Number(precioMin);
-                if (precioMax) filtros.precio.$lte = Number(precioMax);
-            }
-            if (habitacionesMin) {
-                filtros.zonas = {
-                    $elemMatch: {
-                        nombreZona: 'habitación',
-                        cantidad: { $gte: Number(habitacionesMin) }
-                    }
-                };
-            };
-            if (bañosMin) {
-                filtros.zonas = {
-                    $elemMatch: {
-                        nombreZona: 'Baño',
-                        cantidad: { $gte: Number(habitacionesMin) }
-                    }
-                };
-            }
-        }
-
-        const [inmuebles, total] = await Promise.all([
-            Properties.find(filtros)
-                .populate('propietario', 'nombre imagenPerfil')
-                .skip(skip)
-                .limit(limitNum),
-            Properties.countDocuments(filtros)
-        ]);
-
-        res.json({
-            total,
-            page: pageNum,
-            limit: limitNum,
-            totalPages: Math.ceil(total / limitNum),
-            inmuebles
-        });
-    } catch (err) {
-        next(err)
-    }
-});
+router.get('/', getProperties);
 
 
 
