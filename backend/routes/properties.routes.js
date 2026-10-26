@@ -7,6 +7,7 @@ import verificarAdmin from '../middleware/admin.js';
 import verificarPublicante from '../middleware/publicante.js';
 import verificarDuenio from '../middleware/verificarDuenio.js';
 import crypto from 'crypto';
+import logger from '../utils/logger.js';
 import { getProperties } from '../controllers/properties.controller.js';
 import validarPropiedad from '../middleware/validarPropiedad.js';
 
@@ -183,6 +184,7 @@ router.post('/', verificarToken, verificarPublicante, validarPropiedad, async (r
         };
 
         const nuevo = await Properties.create(datosInmueble);
+        logger.info(`Propiedad creada con éxito. ID: ${nuevo._id} - Creada por usuario: ${req.usuario.id}`);
         res.status(201).json(nuevo);
     } catch (err) {
         next(err)
@@ -200,6 +202,7 @@ router.put('/:id', verificarToken, verificarPublicante, verificarDuenio(Properti
             req.body,
             { new: true, runValidators: true }
         );
+        logger.info(`Propiedad editada con éxito. ID: ${editar._id} - Editada por usuario: ${req.usuario.id}`);
         res.json(editar);
     } catch (err) {
         next(err)
@@ -325,7 +328,8 @@ router.put('/:id/eliminar-area/:areaId/:nombreZona', verificarToken, verificarPu
 router.delete('/:id', verificarToken, verificarPublicante, verificarDuenio(Properties), async (req, res, next) => {
     try {
         const eliminado = req.recurso;
-        await eliminado.deleteOne()
+        await eliminado.deleteOne();
+        logger.warn(`Propiedad ELIMINADA. ID: ${eliminado._id} - Borrada por usuario: ${req.usuario.id}`);
         res.json({ mensaje: 'Inmueble eliminado correctamente', eliminado });
     } catch (err) {
         next(err)

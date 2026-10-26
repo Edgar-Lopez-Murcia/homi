@@ -1,6 +1,8 @@
+import logger from './logger.js';
+
 const manejadorErrores = (err, req, res, next) => {
     // 1. Siempre registrar el error en la consola para el desarrollador
-    console.error('❌ Error detectado:', err.message);
+    logger.error(`Error detectado: ${err.message}`, err);
     
     // Error de validación de Mongoose (campos obligatorios, mínimos, máximos)
     if (err.name === 'ValidationError') {

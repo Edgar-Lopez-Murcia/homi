@@ -1,4 +1,6 @@
 // utils/buildPropertyFilter.js
+import { calcularPaginacion, filtrarExacto, filtrarRegex,
+    filtrarBooleano } from './paginationAndFilters.js'
 
 export const buildPropertyFilter = (query) => {
     const {
@@ -62,6 +64,7 @@ export const buildPropertyFilter = (query) => {
 
     // Si no hay filtros en $and, lo eliminamos para no enviar un array vacío a Mongo
     if (filtros.$and.length === 0) delete filtros.$and;
+    logger.info(`Filtros de búsqueda generados: ${JSON.stringify(filtros)}`);
 
     return filtros;
 };

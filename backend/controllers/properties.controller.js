@@ -1,15 +1,13 @@
 // controllers/properties.controller.js (o donde prefieras)
 import Properties from '../models/Properties.js';
-import { buildPropertyFilter } from '../helpers/buildPropertyFilter.js';
+import { buildPropertyFilter } from '../utils/buildPropertyFilter.js';
+import { calcularPaginacion } from '../utils/paginationAndFilters.js';
 
 export const getProperties = async (req, res, next) => {
     try {
-        const { lat, lng, distanciaMax = 5000, sort, page = 1, limit = 20 } = req.query;
+        const { lat, lng, distanciaMax = 5000, sort } = req.query;
 
-        // 1. Paginación segura
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
+        const { pageNum, limitNum, skip } = calcularPaginacion(req.query);
 
         // 2. Construir los filtros base
         const filtros = buildPropertyFilter(req.query);
@@ -29,7 +27,7 @@ export const getProperties = async (req, res, next) => {
                         distanceField: "distancia",
                         maxDistance: Number(distanciaMax),
                         spherical: true,
-                        query: filtros // 🔥 ¡Aquí pasamos TODOS los filtros anteriores! (Precio, tipo, etc.)
+                        query: filtros // ¡Aquí pasamos TODOS los filtros anteriores! (Precio, tipo, etc.)
                     }
                 },
                 // Unir con el propietario

@@ -4,29 +4,24 @@ import Users from '../models/Users.js';
 const router = express.Router();
 import verificarToken from '../middleware/auth.js';
 import verificarAdmin from '../middleware/admin.js';
+import { calcularPaginacion, filtrarExacto, filtrarRegex,
+    filtrarRangoFechas, filtrarBooleano } from '../utils/paginationAndFilters.js';
 
 // GET todos los usuarios — Público con filtros y PAGINACIÓN (Solo Admin)
 router.get('/analisis', verificarToken, verificarAdmin, async (req, res, next) => {
     try {
         const todos = await Users.countDocuments();
-        const { departamento, municipio, nombre, email, rol, estado, verificado, page = 1, limit = 20 } = req.query;
+
+        const { pageNum, limitNum, skip } = calcularPaginacion(req.query);
         
-        const filtros = {}; 
-        if (departamento) filtros.departamento = departamento;
-        if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' }; 
-        if (rol) filtros.rol = rol;
-        if (nombre) filtros.nombre = { $regex: nombre, $options: 'i' }; // Opcional: Búsqueda inteligente por nombre
-        if (email) filtros.email = email;
-        if (estado) filtros.estado = estado; 
+        const filtros = {
+            ...filtrarExacto(req.query, ['departamento', 'rol', 'email', 'estado']),
+            ...filtrarRegex(req.query, ['municipio', 'nombre']),
+            ...filtrarRangoFechas(req.query, 'fechaInicio', 'fechaFin', 'createdAt'),
+            ...filtrarBooleano(req.query, 'verificado') 
+        };
 
-        // REPARADO: Conversión estricta de string a booleano real para MongoDB
-        if (verificado !== undefined && verificado !== '') {
-            filtros.verificado = verificado === 'true'; 
-        }
 
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
 
         // REPARADO: Agregamos .select('-password') para no filtrar los hashes por la red
         const [usuarios, totalFiltrado] = await Promise.all([
@@ -52,24 +47,18 @@ router.get('/analisis', verificarToken, verificarAdmin, async (req, res, next) =
 });
 
 // GET - número de estadisticas 
+// GET - número de estadisticas 
 router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req, res, next) => {
     try {
-        // 1. Recibimos las fechas desde la URL (ej: /estadisticas?fechaInicio=2026-01-01&fechaFin=2026-12-31)
-        const { fechaInicio, fechaFin } = req.query;
-        
-        // Creamos un objeto de filtro para la agregación
-        const filtroGlobal = {};
-
-        // Si el administrador envía fechas, armamos el rango usando el campo de Mongo "createdAt"
-        if (fechaInicio || fechaFin) {
-            filtroGlobal.createdAt = {};
-            if (fechaInicio) filtroGlobal.createdAt.$gte = new Date(fechaInicio); // $gte: Mayor o igual que
-            if (fechaFin) filtroGlobal.createdAt.$lte = new Date(fechaFin);       // $lte: Menor o igual que
-        }
+        // 1. Usamos la función modular para limpiar el rango de fechas
+        const filtroGlobal = {
+            ...filtrarRangoFechas(req.query, 'fechaInicio', 'fechaFin', 'createdAt'),
+            ...filtrarExacto(req.query, ['departamento'])
+        };
 
         // 2. Ejecutamos la agregación con el filtro de fechas al inicio
         const estadisticas = await Users.aggregate([
-            // ETAPA 1: Filtrado de fechas inicial (Afecta a todo el proceso)
+            // ETAPA 1: Filtrado de fechas inicial
             { $match: filtroGlobal },
 
             // ETAPA 2: El Súper Agrupador protegido
@@ -91,23 +80,23 @@ router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req,
             return res.json({ totalGlobal: 0, porEstado: [], porRol: [] });
         }
 
-        // Tu línea se mantiene exactamente igual 
+        // Corregido: agregamos el [0] que faltaba abajo para leer bien la agregación
         const { porEstado, porRol } = estadisticas[0];
 
-        // 3. Calculamos el total dinámico basado en lo que devolvieron los filtros
-        // Sumamos las cantidades de cualquiera de los grupos para saber el total de este período
+        // 3. Calculamos el total dinámico basado en el período seleccionado
         const totalPeriodo = porEstado.reduce((acumulador, item) => acumulador + item.cantidad, 0);
 
         res.json({
-            totalGlobal: totalPeriodo, // Ahora representa el total del período seleccionado
+            totalGlobal: totalPeriodo, 
             porEstado,  
             porRol 
         });
 
     } catch (err) {
-        next(err)
+        next(err);
     }
 });
+
 
 // Ruta para actualizar el tipo de usuario, la verificación y el estado del usuario ( Solo administradores )
 router.put('/actualizar-verificacion/:id',verificarToken, verificarAdmin, async (req, res, next) => {
