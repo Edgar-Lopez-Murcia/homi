@@ -1,5 +1,6 @@
 // validators/user.validator.js
 import { z } from 'zod';
+import { emailNormal } from './globals.validator.js';
 
 
 const passwordRobusto = z.string()
@@ -8,20 +9,23 @@ const passwordRobusto = z.string()
         message: "La contraseña debe incluir al menos una mayúscula, una minúscula y un número" 
     });
 
-const emailBase = z.string().email({ message: "Formato de correo inválido" });
 
 // Esquema para el Registro Completo
 export const registroSchema = z.object({
-    nombre: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres" }),
-    email: emailBase,
+    nombre: z.string().trim().min(3, { message: "El nombre debe tener al menos 3 caracteres" }),
+    email: emailNormal,
     password: passwordRobusto,
-    departamento: z.string().min(1, { message: "El departamento es obligatorio" }),
-    municipio: z.string().min(1, { message: "El municipio es obligatorio" })
+    departamento: z.string().trim()
+        .min(1, { message: "El departamento es obligatorio" })
+        .max(200, { message: "Este departamento excede el límite permitido por el sistema"}),
+    municipio: z.string().trim()
+        .min(1, { message: "El municipio es obligatorio" })
+        .max(200, { message: "Este municipio excede el límite permitido por el sistema"})
 });
 
 // Esquema para el Login (Permisivo)
 export const loginSchema = z.object({
-    email: emailBase,
+    email: emailNormal,
     password: z.string().min(8, { message: "La contraseña es obligatoria" })
 });
 

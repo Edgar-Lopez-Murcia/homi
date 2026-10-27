@@ -1,6 +1,6 @@
 import { Schema, model } from 'mongoose';
 
-const prpietarioVerificacionSchema = new Schema ({
+const propietarioVerificacionSchema = new Schema ({
     usuario: {type: Schema.Types.ObjectId, ref: 'Users', required: true},
 
     nombreUsuario: {type: String, required: true, 
@@ -14,7 +14,7 @@ const prpietarioVerificacionSchema = new Schema ({
     numeroDocumento: {type: Number, required: true, min: 0},
 
     fechaNacimiento: {type: Date, required: true},
-    telefono: {type: Number, required: true, minlength: 9, maxlength: 15 },
+    telefono: {type: String, required: true, minlength: 9, maxlength: 15 },
     email: {type: String, required: true, trim: true, minlength: 5, maxlength: 50 },
     documento: {type: [String], required: true, 
         validate: {
@@ -34,7 +34,7 @@ const prpietarioVerificacionSchema = new Schema ({
     motivoRechazo: {type: String}
 }, { timestamps : true })
 
-prpietarioVerificacionSchema.index({ usuario: 1 }, { unique: true });
+propietarioVerificacionSchema.index({ usuario: 1 }, { unique: true });
 
-const Owners = model('Owners', prpietarioVerificacionSchema);
+const Owners = model('Owners', propietarioVerificacionSchema);
 export default Owners;

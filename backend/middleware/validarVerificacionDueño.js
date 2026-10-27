@@ -1,4 +1,4 @@
-const validarInfraccion = (req, res, next) => {
+const validarVerificacionDuenio = (req, res, next) => {
     const {nombreUsuario, tipoDocumento, numeroDocumento, 
         fechaNacimiento, telefono, email, aceptarTratamientoDatos} = req.body;
 
@@ -97,4 +97,4 @@ const validarInfraccion = (req, res, next) => {
     next();
 };
 
-export default validarInfraccion;
+export default validarVerificacionDuenio;
