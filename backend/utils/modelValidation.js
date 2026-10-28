@@ -1,15 +1,23 @@
-// utils/modelValidation.js
-import logger from './logger.js'; 
+import logger from '../utils/logger.js'; // Ajustamos la ruta del import
 
-const validarConZod = (schema) => {
+export const validarSchema = (schema) => {
     return (req, res, next) => {
-        const resultado = schema.safeParse(req.body);
+        const datosParaValidar = {
+            ...req.body,
+            ...req.params,
+            ...req.query
+        };
+
+        const resultado = schema.safeParse(datosParaValidar);
         
         if (!resultado.success) {
-            const listaDeErrores = resultado.error.issues.map(issue => issue.message);
+            const listaDeErrores = resultado.error.issues.map(issue => ({
+                campo: issue.path.join('.'),
+                mensaje: issue.message
+            }));
             
-            // Guardamos el fallo en tu archivo logs/warn.log automáticamente
-            logger.warn(`Validación fallida en la ruta [${req.method}] ${req.originalUrl} - Errores: ${listaDeErrores.join(', ')}`);
+            const stringErrores = resultado.error.issues.map(i => i.message).join(', ');
+            logger.warn(`Validación fallida en [${req.method}] ${req.originalUrl} - Errores: ${stringErrores}`);
             
             return res.status(400).json({ 
                 error: "Error de validación", 
@@ -17,10 +25,17 @@ const validarConZod = (schema) => {
             });
         }
         
-        req.body = resultado.data; 
+        const llavesBody = Object.keys(req.body);
+        if (llavesBody.length > 0) {
+            req.body = Object.fromEntries(
+                Object.entries(resultado.data).filter(([key]) => llavesBody.includes(key))
+            );
+        }
+
         next();
     };
 };
+
 
 export default validarConZod;
 

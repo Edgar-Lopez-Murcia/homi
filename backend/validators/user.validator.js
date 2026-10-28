@@ -12,15 +12,15 @@ const passwordRobusto = z.string()
 
 // Esquema para el Registro Completo
 export const registroSchema = z.object({
-    nombre: z.string().trim().min(3, { message: "El nombre debe tener al menos 3 caracteres" }),
+    nombre: z.string().trim().min(3).max(50),
     email: emailNormal,
     password: passwordRobusto,
     departamento: z.string().trim()
-        .min(1, { message: "El departamento es obligatorio" })
-        .max(200, { message: "Este departamento excede el límite permitido por el sistema"}),
+        .min(1)
+        .max(200),
     municipio: z.string().trim()
-        .min(1, { message: "El municipio es obligatorio" })
-        .max(200, { message: "Este municipio excede el límite permitido por el sistema"})
+        .min(1)
+        .max(200)
 });
 
 // Esquema para el Login (Permisivo)
@@ -31,7 +31,7 @@ export const loginSchema = z.object({
 
 // Esquema para la Edición de Perfil
 export const usuarioEditarSchema = registroSchema
-    .omit({ password: true, email: true }) // Quitamos los campos prohibidos
+    .omit({ password: true, email: true }) 
     .extend({
         imagenPerfil: z.string().url({ message: "La foto de perfil debe ser una URL válida" }).optional()
     })
@@ -39,11 +39,14 @@ export const usuarioEditarSchema = registroSchema
 
 
 // Esquema exclusivo para el Cambio de Contraseña
-// Zod tiene una herramienta llamada .refine() que sirve para comparar dos campos entre sí
 export const cambioPasswordSchema = z.object({
     passwordActual: z.string().min(1, { message: "Debes introducir tu contraseña actual" }),
-    passwordNueva: passwordRobusto // Reutiliza la regla de mayúsculas, minúsculas y números
+    passwordNueva: passwordRobusto,
+    confirmarPassword: passwordRobusto 
 }).refine((datos) => datos.passwordActual !== datos.passwordNueva, {
     message: "No se permite el mismo valor en ambos campos",
-    path: ["passwordNueva"] // El error se marcará específicamente en el campo nuevo
+    path: ["passwordNueva"] 
+}).refine((datos) => datos.passwordNueva === datos.confirmarPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmarPassword"] 
 });

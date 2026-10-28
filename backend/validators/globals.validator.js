@@ -2,14 +2,11 @@ import { z } from 'zod';
 
 
 export const idSchema = z.object({
-    id: z.string().mongodb({ message: "ID inválido" })
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, { message: "ID inválido" })
 });
 
 export const emailNormal = z.object({
-    email: z.string().trim()
-        .email({ message: "Por favor, introduce un correo electrónico válido" })
-        .min(5, { message: "El correo debe tener al menos 5 caracteres" })
-        .max(100, { message: "El correo no puede superar los 100 caracteres" }),
+    email: z.string().trim().email().min(5).max(100),
 });
 
 

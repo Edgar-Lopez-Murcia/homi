@@ -5,6 +5,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import sanitizarEntradas from './middleware/sanitizarEntradas.js';
 import { limitadorGlobal } from './middleware/limitadorPeticiones.js';
 import manejadorErrores from './middleware/manejadorErrores.js';
+import './validators/zodSetup.js'; 
 
 const app = express();
 

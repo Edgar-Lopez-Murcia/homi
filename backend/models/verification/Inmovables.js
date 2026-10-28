@@ -12,7 +12,7 @@ const inmuebleVerificacionSchema = new Schema({
 
     autorizacion: {type: String},
     estado: {type: String, 
-        enum: ['activo', 'inactivo'], required: true
+        enum: ['activo', 'inactivo'], default: 'activo'
     }
 }, { timestamps : true });
 

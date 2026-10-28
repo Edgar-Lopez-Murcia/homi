@@ -3,7 +3,6 @@ import { Schema, model } from 'mongoose';
 const multaInfraccionSchema = new Schema({
     usuarioPenalizado: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
     
-    // 🔥 AQUÍ ESTÁ LA MAGIA: Un array de IDs de los reportes que provocaron esta multa
     reportesOrigen: [{ type: Schema.Types.ObjectId, ref: 'Reports', required: true }],
     
     diasSuspencion: { type: Number, required: true, min: 1 },

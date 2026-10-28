@@ -5,8 +5,8 @@ import { emailNormal } from './globals.validator.js';
 export const verificarCompaniaSchema = z.objet({
 
     razonSocial : z.string().trim()
-        .min(3, { message: "La razon social es obligatoria y debe tener al menos 3 caracteres" })
-        .max(80, { message: "La razon social no puede superar los 80 caracteres" }),
+        .min(3)
+        .max(80),
     
     nit: z.string().url({ message: "El archivo del nit debe ser una URL válida (PDF o Imagen)" }),
 
@@ -24,8 +24,8 @@ export const verificarCompaniaSchema = z.objet({
         }),
 
     nombreRepresentante: z.string().trim()
-        .min(3, { message: "El nombre del representante es obligatorio y debe tener al menos 3 caracteres" })
-        .max(30, { message: "El nombre del representante no puede superar los 30 caracteres" }),
+        .min(3)
+        .max(30),
 
     telefonoCorporativo:z.string().trim()
         .regex(/^[0-9]{9,15}$/, { 
@@ -34,7 +34,7 @@ export const verificarCompaniaSchema = z.objet({
     
     emalCorporativo: emailNormal,
 
-    documentoRepresentante: z.array(z.string().url({ message: "Cada enlace del documento debe ser una URL válida" }))
+    documentoRepresentante: z.array(z.string().url())
         .length(2, { message: "Debes subir exactamente 2 imágenes de tu documento (Frente y Reverso)" }),
     
     rut: z.string().url({ message: "El archivo del nit debe ser una URL válida (PDF o Imagen)" }),

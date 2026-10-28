@@ -5,11 +5,11 @@ import { z } from 'zod';
 // 1. Esquema para validar un área individual por separado (POST/PUT de áreas)
 export const areaSchema = z.object({
     nombre: z.string().trim()
-        .min(2, { message: "El nombre del área es obligatorio y debe tener al menos 2 caracteres" })
-        .max(50, { message: "El nombre del área no puede superar los 50 caracteres" }),
+        .min(2)
+        .max(50),
     imagen1: z.string().url({ message: "La URL de la imagen principal (imagen1) no es válida" }),
-    imagen2: z.string().url({ message: "La URL de la imagen 2 no es válida" }).optional().or(z.literal('')),
-    imagen3: z.string().url({ message: "La URL de la imagen 3 no es válida" }).optional().or(z.literal(''))
+    imagen2: z.string().url().optional().or(z.literal('')),
+    imagen3: z.string().url().optional().or(z.literal(''))
 });
 
 // Esquema parcial para cuando edites un área (hace todos sus campos opcionales)
@@ -55,13 +55,9 @@ const ubicacionGeoJSONSchema = z.object({
 
 // 4. Esquema Completo para Crear una Propiedad (POST)
 export const propiedadSchema = z.object({
-    titulo: z.string().trim()
-        .min(5, { message: "El título debe tener al menos 5 caracteres" })
-        .max(100, { message: "El título no puede superar los 100 caracteres" }),
+    titulo: z.string().trim().min(5).max(100),
     
-    descripcion: z.string().trim()
-        .min(20, { message: "La descripción debe tener al menos 20 caracteres" })
-        .max(500, { message: "La descripción no puede superar los 500 caracteres" }),
+    descripcion: z.string().trim().min(10).max(500),
     
     tipo: z.enum(['casa', 'apartamento', 'apartamento-estudio', 'habitacion', 'local'], {
         errorMap: () => ({ message: "El tipo de inmueble debe ser: casa, apartamento, apartamento-estudio, habitacion o local" })
@@ -75,21 +71,19 @@ export const propiedadSchema = z.object({
         errorMap: () => ({ message: "El estado del inmueble debe ser: disponible, arrendado o suspendido" })
     }).default('disponible'),
     
-    precio: z.coerce.number()
-        .min(0, { message: "El precio debe ser un número mayor o igual a cero" })
-        .max(100000000, { message: "El precio excede el límite máximo permitido por el sistema" }),
+    precio: z.coerce.number().min(0).max(100000000),
     
-    imagenPrincipal: z.string().url({ message: "La URL de la imagen principal no es válida" }),
-    planosInmueble: z.string().url({ message: "La URL de los planos no es válida" }).optional().or(z.literal('')),
+    imagenPrincipal: z.string().url(),
+    planosInmueble: z.string().url().optional().or(z.literal('')),
     contrato: z.string().optional().or(z.literal('')),
     
-    departamento: z.string().trim().min(1, { message: "El departamento es obligatorio" }),
-    municipio: z.string().trim().min(1, { message: "El municipio es obligatorio" }),
+    departamento: z.string().trim().min(1),
+    municipio: z.string().trim().min(1,),
     direccionExacta: z.string()
-        .min(1, { message: "La dirección exacta es obligatoria" })
-        .max(500, {message: "La dirección excede el límite máximo permitido por el sistema"}),
+        .min(1)
+        .max(500),
     detallesDireccion: z.string().trim()
-        .max(500, {message: "La dirección detallada excede el límite máximo permitido por el sistema"})
+        .max(500)
         .optional().or(z.literal('')),
     
     ubicacion: ubicacionGeoJSONSchema,

@@ -4,8 +4,8 @@ import { fechaNacimientoSchema, emailNormal } from './globals.validator.js';
 
 export const verificacionDuenioSchema = z.object({
     nombreUsuario: z.string().trim()
-        .min(3, { message: "El nombre es obligatorio y debe tener al menos 3 caracteres" })
-        .max(30, { message: "El nombre no puede superar los 30 caracteres" }),
+        .min(3)
+        .max(30),
     
     tipoDocumento: z.enum([
         'Cédula de Ciudadania', 
@@ -29,7 +29,7 @@ export const verificacionDuenioSchema = z.object({
     
     email: emailNormal,
     
-    documento: z.array(z.string().url({ message: "Cada enlace del documento debe ser una URL válida" }))
+    documento: z.array(z.string().url())
         .length(2, { message: "Debes subir exactamente 2 imágenes de tu documento (Frente y Reverso)" }),
     
     selfiDocumento: z.string().url({ message: "La URL de la selfi no es válida" }).optional().or(z.literal('')),
