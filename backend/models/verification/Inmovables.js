@@ -6,7 +6,7 @@ const inmuebleVerificacionSchema = new Schema({
 
     esDueño: {type: Boolean, required: true},
 
-    DocumentoPropiedad: {type: String, 
+    documentoPropiedad: {type: String, 
         enum: ['Certificado de Tradición', 'Escritura', 'Recibo Público'], required: true
     },
 
@@ -18,5 +18,5 @@ const inmuebleVerificacionSchema = new Schema({
 
 inmuebleVerificacionSchema.index({ inmueble: 1 }, { unique: true });
 
-const Inmovales = model('Inmovables', inmuebleVerificacionSchema);
-export default Inmovales;
+const Inmovables = model('Inmovables', inmuebleVerificacionSchema);
+export default Inmovables;

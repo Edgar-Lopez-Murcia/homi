@@ -9,11 +9,7 @@ export const emailNormal = z.object({
     email: z.string().trim().email().min(5).max(100),
 });
 
-
-/**
- * Validador global para fechas de nacimiento con control estricto de edad (Mínimo 16 años, Máximo 120 años)
- * Soporta formatos de texto DD/MM/AAAA, DD-MM-AAAA y formatos ISO estándar.
- */
+// Fecha por tipo de DD/MM/AA
 export const fechaNacimientoSchema = z.string({
     required_error: "La fecha de nacimiento es obligatoria"
 })

@@ -53,9 +53,10 @@ export const getProperties = async (req, res, next) => {
                     }
                 },
                 { $project: { propietarioData: 0 } },
+                { $sort: sortObj },
                 {
                     $facet: {
-                        resultados: [{ $sort: sortObj }, { $skip: skip }, { $limit: limitNum }],
+                        resultados: [ { $skip: skip }, { $limit: limitNum }],
                         conteoTotal: [{ $count: 'total' }]
                     }
                 }

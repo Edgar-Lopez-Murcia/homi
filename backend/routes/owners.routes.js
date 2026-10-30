@@ -1,105 +1,71 @@
+// routes/verificationOwners.routes.js
 import express from 'express';
-import owners from '../models/verification/Owners.js';
+import Owners from '../models/verification/Owners.js';
 
-const router = express.Router();
 import verificarToken from '../middleware/auth.js';
 import verificarAdmin from '../middleware/admin.js';
 import verificarDuenio from '../middleware/verificarDuenio.js';
-import validarVerificacionDueño from '../middleware/validarVerificacionDueño.js'
 
-router.get('/', verificarToken, verificarAdmin, async (req, res, next) => {
-    try{
-        const {tipoDocumento, estado, page = 1, limit = 20} = req.query;
-        
-        const filtros = {};
+import { validarSchema } from '../utils/modelValidation.js';
+import { 
+    verificacionDuenioSchema, 
+    editarDuenioSchema, 
+    verificacionDuenioEditarSchema 
+} from '../validators/verificationOwers.validator.js';
 
-        if (tipoDocumento) filtros.tipoDocumento = tipoDocumento;
-        if (estado) filtros.estado = estado;
+import {
+    getAllVerifications,
+    getMyVerification,
+    createVerification,
+    updateMyVerification,
+    changeVerificationStatus,
+    deleteVerification
+} from '../controllers/verificationOwners.controller.js';
 
-        
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
-        
-        const [repostes, totalFiltrado] = await owners.all([
-            owners.find(filtros)
-                .populate('usuario', 'nombre imagenPerfil')
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limitNum),
-            owners.countDocuments(filtros)
-            ]);
-        res.json(repostes, totalFiltrado);
+const router = express.Router();
 
-    } catch (err) {
-        next(err)
-    }
-});
 
-router.post('/', verificarToken, async (req, res, next) => {
-    try {
+// RUTAS ESTÁTICAS Y DEL USUARIO 
 
-        const datosNuevos = {
-            ...req.body,
-            usuario: req.usuario.id
-        }
+// El usuario revisa su propio estado de verificación
+router.get('/me', verificarToken, getMyVerification);
 
-        const crear = await owners.create(datosNuevos);
-        res.json
+// Crear solicitud
+router.post('/', 
+    verificarToken, 
+    validarSchema(verificacionDuenioSchema), 
+    createVerification
+);
 
-    } catch (err) {
-        next(err)
-    }
-});
+// Editar solicitud (Solo el dueño de la solicitud)
+router.put('/:id', 
+    verificarToken, 
+    verificarDuenio(Owners, 'usuario'), 
+    validarSchema(editarDuenioSchema), 
+    updateMyVerification
+);
 
-router.put('/:id', verificarToken, verificarDuenio(owners, 'usuario'), validarVerificacionDueño, async (req, res, next) => {
-    try{
-        delete req.body.motivoRechazo;
 
-        const editar = await owners.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: true }
-        );
-        res.json(editar);
+// RUTAS DE ADMINISTRACIÓN
 
-    } catch (err) {
-        next(err)
-    }
-});
+// Listar todas las solicitudes
+router.get('/', verificarToken, verificarAdmin, getAllVerifications);
 
-router.put('/:id/esatdo', verificarToken, verificarAdmin, async (req, res, next) => {
-    try {
-        const {estado, motivoRechazo} = req.body
-        if (estado !== undefined && !['PENDIENTE', 'APROBADO', 'RECHAZADO'].includes(estado)) {
-            return res.status(400).json({ error: 'el estado no es válido.' });
-        };
-        if (motivoRechazo !== undefined && motivoRechazo.trim().length < 3 || motivoRechazo.trim().length > 500 ) {
-            return res.status(400).json({ error: 'El motivo de rechazo debe tener al menos 3 caracteres y menos de 500 caracteres.' });
-        }
-        const editar = await Propiedad.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: true }
-        );
-        res.json(editar);
+// Cambiar estado 
+router.put('/:id/estado', 
+    verificarToken, 
+    verificarAdmin, 
+    validarSchema(verificacionDuenioEditarSchema), 
+    changeVerificationStatus
+);
 
-    } catch (err) {
-        next(err)
-    }
-});
 
-router.delete('/:id', verificarToken, verificarDuenio(owners, 'usuario'), async(req, res, next) => {
-    try {
-        const eliminar = req.recurso;
+// RUTAS GENERALES (Dinámicas)
 
-        await eliminar.deleteOne();
-        res.json({
-            mensaje: 'Reseña eliminada',
-            eliminar
-        });
-        
-    } catch (err) {
-        next(err)
-    }
-});
+router.delete('/:id', 
+    verificarToken, 
+    verificarDuenio(Owners, 'usuario'), 
+    deleteVerification
+);
+
+export default router;

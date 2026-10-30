@@ -11,7 +11,7 @@ const propietarioVerificacionSchema = new Schema ({
         default: 'Cédula de Ciudadania'
     }, 
 
-    numeroDocumento: {type: Number, required: true, min: 0},
+    numeroDocumento: {type: String, required: true, min: 0},
 
     fechaNacimiento: {type: Date, required: true},
     telefono: {type: String, required: true, minlength: 9, maxlength: 15 },

@@ -50,3 +50,15 @@ export const cambioPasswordSchema = z.object({
     message: "Las contraseñas no coinciden",
     path: ["confirmarPassword"] 
 });
+
+// Esquema para actualizar el tipo de usuario, la verificación y el estado del usuario
+
+export const actualizarEstadoSchema = z.object({
+    estado: z.enum(['ACTIVE', 'SUSPENDED', 'RESTRICTED', 'BANNED', 'INACTIVE']).optional(),
+    tipoUsuario: z.enum(['arrendatario', 'propietario', 'empresa']).optional(),
+    verificado: z.preprocess((val) => {
+        if (val === "true") return true;
+        if (val === "false") return false;
+        return val;
+    }).optional(),
+})

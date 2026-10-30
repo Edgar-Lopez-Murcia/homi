@@ -10,7 +10,7 @@ export const verificacionInmuebleSchema = z.object({
         return val;
     }, z.boolean({ required_error: "Es obligatorio especificar si eres el dueño del inmueble" })),
 
-    DocumentoPropiedad: z.enum(['Certificado de Tradición', 'Escritura', 'Recibo Público'], {
+    documentoPropiedad: z.enum(['Certificado de Tradición', 'Escritura', 'Recibo Público'], {
         errorMap: () => ({ message: "El documento de propiedad debe ser: Certificado de Tradición, Escritura o Recibo Público" })
     }),
 

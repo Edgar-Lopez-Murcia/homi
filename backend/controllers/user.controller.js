@@ -3,7 +3,7 @@ import { calcularPaginacion, filtrarExacto, filtrarRegex,
     filtrarRangoFechas, filtrarBooleano } from '../utils/paginationAndFilters.js';
 import { construirFacetEstadisticas } from '../utils/aggregationHelpers.js';
 
-export const getAnalisis = async (req, res, next) => {
+export const getAnalysis = async (req, res, next) => {
     try {
         const todos = await Users.countDocuments();
 
@@ -38,9 +38,8 @@ export const getAnalisis = async (req, res, next) => {
     }
 };
 
-export const getEstadisticas = async (req, res, next) => {
+export const getStatistics = async (req, res, next) => {
     try {
-        // 1. Usamos la función modular para limpiar el rango de fechas
         const filtroGlobal = {
             ...filtrarRangoFechas(req.query, 'fechaInicio', 'fechaFin', 'createdAt'),
             ...filtrarExacto(req.query, ['departamento'])
@@ -48,12 +47,10 @@ export const getEstadisticas = async (req, res, next) => {
 
         const camposUsuarios = ['estado', 'rol'];
 
-        // 2. Ejecutamos la agregación con el filtro de fechas al inicio
         const estadisticas = await Users.aggregate([
-            // ETAPA 1: Filtrado de fechas inicial
+
             { $match: filtroGlobal },
 
-            // ETAPA 2: El Súper Agrupador protegido
             {
                 $facet: construirFacetEstadisticas(camposUsuarios)
             }
@@ -63,10 +60,8 @@ export const getEstadisticas = async (req, res, next) => {
             return res.json({ totalGlobal: 0, porEstado: [], porRol: [] });
         }
 
-        // Corregido: agregamos el [0] que faltaba abajo para leer bien la agregación
         const { porEstado, porRol } = estadisticas[0];
 
-        // 3. Calculamos el total dinámico basado en el período seleccionado
         const totalPeriodo = porEstado.reduce((acumulador, item) => acumulador + item.cantidad, 0);
 
         res.json({
@@ -80,33 +75,12 @@ export const getEstadisticas = async (req, res, next) => {
     }
 };
 
-export const putActualizar =  async (req, res, next) => {
+export const putActualize =  async (req, res, next) => {
     try{
-
-        const {tipoUsuario, verificado, estado} = req.body;
-        
-        // Validar tipoUsuario
-        if (tipoUsuario !== undefined && !['propietario', 'empresa', 'arrendatario'].includes(tipoUsuario)) {
-            return res.status(400).json({ error: 'tipoUsuario no es válido.' });
-        }
-        // Validar verificado
-        if (verificado !== undefined && typeof verificado !== 'boolean') {
-            return res.status(400).json({ error: 'verificado debe ser booleano.' });
-        }
-        // Validar estado
-        const estadosPermitidos = ['ACTIVE', 'SUSPENDED', 'RESTRICTED', 'BANNED', 'INACTIVE'];
-        if (estado !== undefined && !estadosPermitidos.includes(estado)) {
-            return res.status(400).json({ error: 'estado no es válido.' });
-        }
-        const camposActualizar = {};
-
-        if (tipoUsuario !== undefined) camposActualizar.tipoUsuario = tipoUsuario;
-        if (verificado !== undefined) camposActualizar.verificado = verificado;
-        if (estado !== undefined) camposActualizar.estado = estado;
 
         const modificado = await Users.findByIdAndUpdate(
             req.params.id,
-            camposActualizar,
+            req.body,
             {new: true, runValidators: true}
         ).select('-password');
 

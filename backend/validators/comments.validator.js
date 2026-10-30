@@ -19,6 +19,13 @@ export const comentarioSchema = z.object({
 
 export const editarComentarioSchema = comentarioSchema.partial();
 
+export const cambiarEstadoSchema = comentarioSchema
+    .extend({
+        estado: z.enum(['visible', 'oculto', 'reportado']).optional(),
+    })
+    .partial();
+
+
 export const respuestaPropietarioSchema = z.object({
     respuestaPropietario: z.string().trim().min(2).max(50)
 })

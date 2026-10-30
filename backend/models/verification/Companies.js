@@ -13,14 +13,14 @@ const empresaVerificacionSchema = new Schema ({
         default: 'Cédula de Ciudadania'
     }, 
 
-    numeroDocumento: {type: Number, required: true, min: 0},
+    numeroDocumento: {type: String, required: true, minlength: 3, maxlength: 12},
 
-    nombreRegresentante: {type: String, required: true},
+    nombreRepresentante: {type: String, required: true},
     telefonoCorporativo: {type: String, required: true, minlength: 9, maxlength: 15 },
     emailCorporativo: {type: String, required: true, trim: true, minlength: 5, maxlength: 50 },
     documentoRepresentante: {type: [String], required: true, 
         validate: {
-            validator: (arr) => arr.length <= 2, 
+            validator: (arr) => arr.length === 2, 
             message: 'Solo se permiten 2 imagenes para el documento'
         }  },
 

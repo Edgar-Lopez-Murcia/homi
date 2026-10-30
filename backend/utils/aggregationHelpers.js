@@ -72,3 +72,23 @@ export const construirFacetEstadisticas = (campos = []) => {
 
     return facetObj;
 };
+
+// calcularemos el promedio de las calificaciones de los comentarios
+export async function calcularPromedio(propiedadId) {
+    const agg = await Comments.aggregate([
+        { $match: {
+            propiedad: new mongoose.Types.ObjectId(propiedadId),
+            estado: 'visible'
+        }},
+        { $group: {
+            _id: null,
+            promedio: { $avg: '$calificacion' },
+            total:    { $sum: 1 }
+        }}
+    ]);
+    const d = agg[0] || { promedio: 0, total: 0 };
+    return {
+        puntuacionFinal: d.promedio ? parseFloat(d.promedio.toFixed(1)) : 0,
+        totalReseñas:    d.total
+    };
+}

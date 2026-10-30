@@ -16,7 +16,7 @@ router.get('/', verificarToken, verificarAdmin, async (req, res, next) => {
         const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
         const skip = (pageNum - 1) * limitNum;
 
-        const [repostes, totalFiltrado] = await Promise.all([
+        const [reportes, totalFiltrado] = await Promise.all([
             Reports.find(filtros)
                 .populate('usuarioReporte', 'nombre imagenPerfil')
                 .populate('usuarioReportado', 'nombre imagenPerfil')
@@ -25,11 +25,13 @@ router.get('/', verificarToken, verificarAdmin, async (req, res, next) => {
                 .limit(limitNum),
             Reports.countDocuments(filtros)
         ]);
-        res.json(repostes, totalFiltrado);
+        res.json(reportes, totalFiltrado);
     } catch (err) {
         next(err)
     }
 });
+
+
 
 router.delete('/:id', verificarToken, verificarAdmin, async (req, res, next) => {
     try {

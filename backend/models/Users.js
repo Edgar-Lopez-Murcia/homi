@@ -30,7 +30,6 @@ const usuarioSchema = new Schema({
     departamento:     {type: String, required: true},
     municipio:        {type: String, required: true},
     verificado:       {type: Boolean, default: false},
-    favoritos: [favoritoSchema],
     ultimoLogin: { type: Date, default: null },
 
 }, { timestamps : true });

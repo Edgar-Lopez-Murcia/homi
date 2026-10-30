@@ -1,20 +1,17 @@
 import { z } from 'zod';
-
-const objectIdRegex = /^[0-9a-fA-F]{24}$/;
-const objectIdSchema = z.string().regex(objectIdRegex);
+import { idSchema } from './globals.validator.js';
 
 export const crearReporteSchema = z.object({
-    // IDs de relación (Vienen del Token o del Body según tu lógica)
-    usuarioReporte: objectIdSchema,
-    usuarioReportado: objectIdSchema,
-    asunto: objectIdSchema, 
+    
+    usuarioReportado: z.string().regex(idSchema, { message: "ID de usuario reportado no válido" }),
 
-    // Campo opcional (No requerido en Mongoose)
-    publicacionReportada: objectIdSchema.optional(),
+    asunto: z.string().regex(idSchema, { message: "ID de infracción no válido" }), 
+
+    
+    publicacionReportada: z.string().regex(idSchema, { message: "ID de propiedad no válido" }).optional(),
 
     comentario: z.string().trim().min(1).max(500),
 
-    // Un arreglo de URLs para las imágenes de prueba
     imagenPrueba: z
         .array(z.string().url())
         .max(4)
@@ -32,5 +29,6 @@ export const actualizarEstadoReporteSchema = z.object({
         'CONFIRMADO', 
         'FINALIZADO'
     ]),
-    adminResponsable: objectIdSchema.optional()
+    
+    adminResponsable: z.string().regex(idSchema).optional()
 });
