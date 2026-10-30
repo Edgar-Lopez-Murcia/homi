@@ -1,47 +1,33 @@
 // utils/buildPropertyFilter.js
-import { calcularPaginacion, filtrarExacto, filtrarRegex,
-    filtrarBooleano } from './paginationAndFilters.js'
+import { filtrarExacto, filtrarRegex, filtrarRango } from './paginationAndFilters.js';
+import logger from './logger.js';
 
 export const buildPropertyFilter = (query) => {
-    const {
-        departamento, codigoCorto, municipio, tipo, tipoAlquiler,
-        precioMin, precioMax, habitacionesMin, bañosMin,
-        likesMin // Añadido por si quieres filtrar por popularidad
-    } = query;
-
-    let filtros = {};
+    const { codigoCorto, habitacionesMin, bañosMin, likesMin } = query;
 
     // 1. Búsqueda por código exacto
     if (codigoCorto) {
         return { codigoCorto: codigoCorto.toUpperCase().trim() };
     }
 
-    // 2. Filtros generales
-    filtros.estado = 'disponible'; // Por defecto solo mostramos disponibles
-
-    if (departamento) filtros.departamento = departamento;
-    if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' };
-    if (tipo) filtros.tipo = tipo;
-    if (tipoAlquiler) filtros.tipoAlquiler = tipoAlquiler;
-
-    // 3. Rango de precios
-    if (precioMin || precioMax) {
-        filtros.precio = {};
-        if (precioMin) filtros.precio.$gte = Number(precioMin);
-        if (precioMax) filtros.precio.$lte = Number(precioMax);
-    }
+    // 2. Construcción limpia del objeto filtros usando Spread (...)
+    const filtros = {
+        estado: 'disponible', // Filtro por defecto
+        ...filtrarExacto(query, ['departamento', 'tipo', 'tipoAlquiler']),
+        ...filtrarRegex(query, ['municipio']),
+        ...filtrarRango(query, 'precioMin', 'precioMax', 'precio')
+    };
 
     // 4. Filtro de Likes (opcional)
     if (likesMin) {
         filtros.likes = { $gte: Number(likesMin) };
     }
 
-    // 5. Filtros de Zonas (Habitaciones y Baños) - SOLUCIÓN AL BUG
-    // Usamos $and para que no se sobrescriban entre sí
-    filtros.$and = [];
+    // 4. Filtros manuales de Zonas Complejas (Habitaciones y Baños)
+    const andConditions = [];
     
     if (habitacionesMin) {
-        filtros.$and.push({
+        andConditions.push({
             zonas: {
                 $elemMatch: {
                     nombreZona: 'Habitación',
@@ -52,18 +38,21 @@ export const buildPropertyFilter = (query) => {
     }
     
     if (bañosMin) {
-        filtros.$and.push({
+        andConditions.push({
             zonas: {
                 $elemMatch: {
-                    nombreZona: 'Baño', // Ojo: en tu modelo está con mayúscula
+                    nombreZona: 'Baño',
                     cantidad: { $gte: Number(bañosMin) }
                 }
             }
         });
     }
 
-    // Si no hay filtros en $and, lo eliminamos para no enviar un array vacío a Mongo
-    if (filtros.$and.length === 0) delete filtros.$and;
+    // Si se agregaron condiciones al array, lo inyectamos en el objeto filtros
+    if (andConditions.length > 0) {
+        filtros.$and = andConditions;
+    }
+
     logger.info(`Filtros de búsqueda generados: ${JSON.stringify(filtros)}`);
 
     return filtros;

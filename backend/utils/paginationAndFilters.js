@@ -1,8 +1,7 @@
 // utils/controllerPagination.js
 
-
 // controlador de paginacion de información
-export const controlarPaginacion = (query) => {
+export const calcularPaginacion = (query) => {
         
         const { page = 1, limit = 20 } = query;
 
@@ -11,7 +10,6 @@ export const controlarPaginacion = (query) => {
         const skip = (pageNum - 1) * limitNum;
 
         return {pageNum, limitNum, skip}
-
 };
 
 // Filtra de forma exacta los campos que le pases en el array
@@ -37,8 +35,8 @@ export const filtrarRegex = (query, campos = []) => {
 // filtrar por rangos, tanto minimo como maximo 
 export const filtrarRango = (query, campoDesde, campoHasta, nombreCampoDB) => {
         const filtroRango = {};
-        if (query[campoDesde]) filtroRango.$gte = query[campoDesde];
-        if (query[campoHasta]) filtroRango.$lte = query[campoHasta];
+        if (query[campoDesde]) filtroRango.$gte = Number(query[campoDesde]);
+        if (query[campoHasta]) filtroRango.$lte = Number(query[campoHasta]);
         
         // Si se usó al menos uno de los dos límites, retornamos el filtro
         return Object.keys(filtroRango).length > 0 ? { [nombreCampoDB]: filtroRango } : {};

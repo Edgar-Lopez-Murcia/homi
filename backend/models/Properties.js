@@ -50,7 +50,7 @@ const inmuebleSchema = new Schema({
     direccionExacta: { type: String, required: true },
     detallesDireccion: { type: String }, // Ej: "Frente al parque principal, apto 201"
 
-     // 🔥 NUEVO CAMPO: Geolocalización en formato GeoJSON
+     // Geolocalización en formato GeoJSON
     ubicacion: {
         type: {
             type: String,
@@ -81,10 +81,20 @@ const inmuebleSchema = new Schema({
 
 }, { timestamps : true});
 
-inmuebleSchema.index({ ubicacion: "2dsphere" });
+// 1. Geolocalización eficiente combinada con filtros comunes
+inmuebleSchema.index({ ubicacion: "2dsphere", estado: 1, tipo: 1 });
 
+// 2. Búsqueda por ubicación textual básica (Filtro exacto o Regex)
 inmuebleSchema.index({ departamento: 1, municipio: 1, estado: 1 });
-inmuebleSchema.index({ precio: 1 });
+
+// 3. El Súper Índice de Búsqueda Normal (Sigue la regla ESR: estado/dept/tipo son Igualdad, createdAt es Orden)
+inmuebleSchema.index({ estado: 1, departamento: 1, tipo: 1, createdAt: -1 });
+
+// 4. Consultas combinadas de estado y precio (Para ordenamientos e intervalos de precio comunes)
+inmuebleSchema.index({ estado: 1, precio: 1 });
+
+// 5. Consultas que ordenan por popularidad (Likes)
+inmuebleSchema.index({ estado: 1, likes: -1 });
 
 const Properties = model('Properties', inmuebleSchema);
 export default Properties;

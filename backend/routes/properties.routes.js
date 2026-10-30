@@ -1,343 +1,90 @@
+// routes/properties.routes.js
 import express from 'express';
 import Properties from '../models/Properties.js';
 
-const router = express.Router();
 import verificarToken from '../middleware/auth.js';
 import verificarAdmin from '../middleware/admin.js';
 import verificarPublicante from '../middleware/publicante.js';
 import verificarDuenio from '../middleware/verificarDuenio.js';
-import crypto from 'crypto';
-import logger from '../utils/logger.js';
-import { getProperties } from '../controllers/properties.controller.js';
-import validarPropiedad from '../middleware/validarPropiedad.js';
 
+// Importamos el validador corregido (con llaves)
+import { validarSchema } from '../utils/modelValidation.js';
+import { propiedadSchema, propiedadEditarSchema } from '../validators/property.validator.js';
+
+// Importamos TODOS los controladores
+import { 
+    getProperties, 
+    getPropertyById,
+    getMyProperties,
+    getPropertiesAnalysis,
+    getPropertiesStats,
+    createProperty,
+    updateProperty,
+    addAreasToProperty,
+    removeAreaFromProperty,
+    deleteProperty
+} from '../controllers/properties.controller.js';
+
+const router = express.Router();
 
 // ============================================
-// 🌐 RUTAS PÚBLICAS — GET
+// 🌐 RUTAS PÚBLICAS
 // ============================================
-
-// GET todas las propiedades — Público con filtros y PAGINACIÓN 
 router.get('/', getProperties);
 
 
-
-// GET un inmueble por ID específico — Público
-router.get('/:id', async (req, res, next) => {
-    try {
-        const inmueble = await Properties.findById(req.params.id);
-        if (!inmueble) return res.status(404).json({ error: 'Inmueble no encontrado' });
-
-        res.json(inmueble);
-    } catch (err) {
-        next(err)
-    } 
-});
-
 // ============================================
-// 🔒 RUTAS PRIVADAS (PROPIETARIOS / ADMINS)
+// 🔒 RUTAS PRIVADAS Y DE ADMINISTRACIÓN
 // ============================================
 
-// GET mis inmuebles — Privado (Corrección del bug de búsqueda de Mongoose)
-router.get('/propios/mis-inmuebles', verificarToken, verificarPublicante, async (req, res, next) => {
-    try {
-        const { departamento, municipio, tipo, tipoAlquiler, estado } = req.query;
-        
-        // Unificamos el dueño con los filtros dinámicos en un solo objeto
-        const filtros = { propietario: req.usuario.id };
-
-        if (departamento) filtros.departamento = departamento;
-        if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' }; 
-        if (tipo) filtros.tipo = tipo;
-        if (tipoAlquiler) filtros.tipoAlquiler = tipoAlquiler;
-        if (estado) filtros.estado = estado;
-
-        const inmuebles = await Properties.find(filtros).sort({ createdAt: -1 });
-        
-        res.json(inmuebles);
-    } catch (err) {
-        next(err)
-    }
-});
-
-// GET todas las propiedades — Público con filtros y PAGINACIÓN (Solo Admin)
-router.get('/analisis', verificarToken, verificarAdmin, async (req, res, next) => {
-    try {
-        const todos = await Properties.countDocuments();
-        const { departamento, estado, municipio, tipo, precioMax, tipoAlquiler, page = 1, limit = 20 } = req.query;
-        
-        const filtros = {}; 
-        if (departamento) filtros.departamento = departamento;
-        if (municipio) filtros.municipio = { $regex: municipio, $options: 'i' }; 
-        if (tipo) filtros.tipo = tipo;
-        if (tipoAlquiler) filtros.tipoAlquiler = tipoAlquiler;
-        if (estado) filtros.estado = estado; 
-        if (precioMax) filtros.precio = { $lte: Number(precioMax) }; 
-
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-        const skip = (pageNum - 1) * limitNum;
-
-        const [inmuebles, totalFiltrado] = await Promise.all([
-            Properties.find(filtros)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limitNum),
-            Properties.countDocuments(filtros)
-        ]);
-        
-        res.json({
-            totalGlobal: todos,
-            totalFiltrado: totalFiltrado,
-            page: pageNum,
-            limit: limitNum,
-            totalPages: Math.ceil(totalFiltrado / limitNum),
-            inmuebles
-        });
-    } catch (err) {
-        next(err)
-    }
-});
+router.get('/propios/mis-inmuebles', verificarToken, verificarPublicante, getMyProperties);
+router.get('/analisis', verificarToken, verificarAdmin, getPropertiesAnalysis);
+router.get('/analisis/estadisticas', verificarToken, verificarAdmin, getPropertiesStats);
 
 
-// GET - número de estadisticas 
-router.get('/analisis/estadisticas', verificarToken, verificarAdmin, async (req, res, next) => {
-    try {
-        // 1. Recibimos las fechas desde la URL (ej: /estadisticas?fechaInicio=2026-01-01&fechaFin=2026-12-31)
-        const { fechaInicio, fechaFin } = req.query;
-        
-        // Creamos un objeto de filtro para la agregación
-        const filtroGlobal = {};
-
-        // Si el administrador envía fechas, armamos el rango usando el campo de Mongo "createdAt"
-        if (fechaInicio || fechaFin) {
-            filtroGlobal.createdAt = {};
-            if (fechaInicio) filtroGlobal.createdAt.$gte = new Date(fechaInicio); // $gte: Mayor o igual que
-            if (fechaFin) filtroGlobal.createdAt.$lte = new Date(fechaFin);       // $lte: Menor o igual que
-        }
-
-        // 2. Ejecutamos la agregación con el filtro de fechas al inicio
-        const estadisticas = await Properties.aggregate([
-            // ETAPA 1: Filtrado de fechas inicial (Afecta a todo el proceso)
-            { $match: filtroGlobal },
-
-            // ETAPA 2: El Súper Agrupador protegido
-            {
-                $facet: {
-                    porEstado: [
-                        { $match: { estado: { $exists: true, $ne: null, $nin: ["", " "] } } },
-                        { $group: { _id: "$estado", cantidad: { $sum: 1 } } }
-                    ],
-                    porTipo: [
-                        { $match: { tipo: { $exists: true, $ne: null, $nin: ["", " "] } } },
-                        { $group: { _id: "$tipo", cantidad: { $sum: 1 } } }
-                    ],
-                    porAlquiler: [
-                        { $match: { tipoAlquiler: { $exists: true, $ne: null, $nin: ["", " "] } } },
-                        { $group: { _id: "$tipoAlquiler", cantidad: { $sum: 1 } } }
-                    ]
-                }
-            }
-        ]);
-
-        // Tu línea se mantiene exactamente igual 
-        const { porEstado, porTipo, porAlquiler } = estadisticas[0];
-
-        // 3. Calculamos el total dinámico basado en lo que devolvieron los filtros
-        // Sumamos las cantidades de cualquiera de los grupos para saber el total de este período
-        const totalPeriodo = porEstado.reduce((acumulador, item) => acumulador + item.cantidad, 0);
-
-        res.json({
-            totalGlobal: totalPeriodo, // Ahora representa el total del período seleccionado
-            porEstado,  
-            porTipo,    
-            porAlquiler 
-        });
-
-    } catch (err) {
-        next(err)
-    }
-});
+// ============================================
+// 🌐 RUTAS PÚBLICAS DINÁMICAS (Va al final de los GET)
+// ============================================
+router.get('/:id', getPropertyById);
 
 
+// ============================================
+// ✍️ RUTAS DE MUTACIÓN (POST, PUT, DELETE)
+// ============================================
 
-// POST crear inmueble — Convención REST limpia sin la palabra '/publicar'
-router.post('/', verificarToken, verificarPublicante, validarPropiedad, async (req, res, next) => {
-    try {
-        const codigoAleatorio = crypto.randomBytes(3).toString('hex').toUpperCase();
+router.post('/', 
+    verificarToken, 
+    verificarPublicante, 
+    validarSchema(propiedadSchema), // Zod se encarga de validar áreas, URLs y coordenadas
+    createProperty
+);
 
-        // Validar que las imágenes sean URLs válidas
-        if (req.body.areas && Array.isArray(req.body.areas)) {
-            for (const area of req.body.areas) {
-                if (area.imagen1 && !validator.isURL(area.imagen1, { require_protocol: true })) {
-                    return res.status(400).json({ error: `La URL de la imagen del área ${area.nombre} no es válida.` });
-                };
-            
-            // ... validar imagen2, imagen3
-            }
-        }
+router.put('/:id', 
+    verificarToken, 
+    verificarPublicante, 
+    verificarDuenio(Properties), 
+    validarSchema(propiedadEditarSchema), // Zod valida los campos parciales
+    updateProperty
+);
 
-        const datosInmueble = { 
-            ...req.body, 
-            codigoCorto: codigoAleatorio,
-            propietario: req.usuario.id, 
-            likes: 0 
-        };
+router.put('/:id/agregar-areas', 
+    verificarToken, 
+    verificarPublicante, 
+    verificarDuenio(Properties, 'propietario', 'zonas areas'), 
+    addAreasToProperty
+);
 
-        const nuevo = await Properties.create(datosInmueble);
-        logger.info(`Propiedad creada con éxito. ID: ${nuevo._id} - Creada por usuario: ${req.usuario.id}`);
-        res.status(201).json(nuevo);
-    } catch (err) {
-        next(err)
-    }
-});
-// PUT editar inmueble — Convención REST limpia sin la palabra '/editar'
-router.put('/:id', verificarToken, verificarPublicante, verificarDuenio(Properties), validarPropiedad,  async (req, res) => {
-    try {
+router.put('/:id/eliminar-area/:areaId/:nombreZona', 
+    verificarToken, 
+    verificarPublicante, 
+    removeAreaFromProperty
+);
 
-        // Bloqueamos que intenten editar el codigoCorto manualmente desde el req.body
-        delete req.body.codigoCorto;
-
-        const editar = await Properties.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: true }
-        );
-        logger.info(`Propiedad editada con éxito. ID: ${editar._id} - Editada por usuario: ${req.usuario.id}`);
-        res.json(editar);
-    } catch (err) {
-        next(err)
-    }
-});
-
-router.put('/:id/agregar-areas', verificarToken, verificarPublicante, verificarDuenio(Properties, 'propietario', 'zonas areas'), async (req, res, next) => {
-    try {
-        const inmueble = req.recurso; 
-
-        const { nuevasAreas, tipoZona } = req.body;
-
-        // Validar tipoZona
-        const zonasPermitidas = ['Exterior', 'Cocina', 'Baño', 'habitación', 'Cuarto de lavado', 
-            'Vestidor', 'Bodega', 'Sala de estar', 'Comedor', 'Cuarto de estudio', 'Piso',
-            'Patio interior', 'Terraza', 'otros'];
-        if (!tipoZona || !zonasPermitidas.includes(tipoZona)) {
-            return res.status(400).json({ error: "El 'tipoZona' no es válido." });
-        }
-
-        // Validar estructura de nuevasAreas
-        if (!nuevasAreas || !Array.isArray(nuevasAreas) || nuevasAreas.length === 0) {
-            return res.status(400).json({ error: "Debe enviar una lista 'nuevasAreas' con al menos un elemento." });
-        }
-
-        for (const area of nuevasAreas) {
-            if (!area.nombre || !area.imagen1) {
-                return res.status(400).json({ error: "Cada área debe tener 'nombre' e 'imagen1'." });
-            }
-            if (!validator.isURL(area.imagen1, { require_protocol: true })) {
-                return res.status(400).json({ error: `La URL de la imagen del área '${area.nombre}' no es válida.` });
-            }
-        }
-
-        // Limitar número total de áreas (ej. máximo 50)
-        const totalAreasActuales = inmueble.areas ? inmueble.areas.length : 0;
-        if (totalAreasActuales + nuevasAreas.length > 50) {
-            return res.status(400).json({ error: "No puedes agregar más de 50 áreas en total." });
-        }
-
-        const cantidadAIncrementar = nuevasAreas.length;
-        const existeZona = inmueble.zonas.some(z => z.nombreZona === tipoZona);
-        let inmuebleActualizado;
-
-        if (existeZona) {
-            inmuebleActualizado = await Properties.findOneAndUpdate(
-                { _id: req.params.id, "zonas.nombreZona": tipoZona },
-                { 
-                    $push: { areas: { $each: nuevasAreas } },
-                    $inc: { "zonas.$.cantidad": cantidadAIncrementar }
-                },
-                { new: true, runValidators: true }
-            );
-        } else {
-            inmuebleActualizado = await Properties.findByIdAndUpdate(
-                req.params.id,
-                { 
-                    $push: { 
-                        areas: { $each: nuevasAreas },
-                        zonas: { nombreZona: tipoZona, cantidad: cantidadAIncrementar }
-                    } 
-                },
-                { new: true, runValidators: true }
-            );
-        }
-
-        res.json(inmuebleActualizado);
-    } catch (err) { next(err) }
-});
-
-// ELIMINAR UNA SOLA ÁREA POR SU ID DE SUBESQUEMA
-router.put('/:id/eliminar-area/:areaId/:nombreZona', verificarToken, verificarPublicante, async (req, res, next) => {
-    try {
-        const inmueble = await Properties.findById(req.params.id).select('propietario zonas');
-        if (!inmueble) return res.status(404).json({ error: 'La publicación no existe' });
-
-        const esDueño = inmueble.propietario.equals(req.usuario.id);
-        const esAdmin = req.usuario.rol === 'admin';
-        if (!esDueño && !esAdmin) return res.status(403).json({ error: 'No tienes permisos para eliminar esta publicación' });
-
-        const { areaId, nombreZona } = req.params;
-
-        // 1. Ejecutamos primero la resta tradicional y sacamos el área
-        let inmuebleActualizado = await Properties.findOneAndUpdate(
-            { _id: req.params.id, "zonas.nombreZona": nombreZona },
-            {
-                $pull: { areas: { _id: areaId } },
-                $inc: { "zonas.$.cantidad": -1 }
-            },
-            { new: true }
-        );
-
-        // Si por alguna razón la zona no estaba mapeada numéricamente pero sí el área, limpiamos solo el área
-        if (!inmuebleActualizado) {
-            inmuebleActualizado = await Properties.findByIdAndUpdate(
-                req.params.id,
-                { $pull: { areas: { _id: areaId } } },
-                { new: true }
-            );
-            return res.json({ mensaje: "Área eliminada", inmuebleActualizado });
-        }
-
-        // 2. LÓGICA DE LIMPIEZA AUTOMÁTICA: 
-        // Buscamos la zona que acabamos de modificar dentro del resultado devuelto
-        const zonaModificada = inmuebleActualizado.zonas.find(z => z.nombreZona === nombreZona);
-
-        // Si la cantidad llegó a 0 (o menos por error), la borramos por completo de la base de datos
-        if (zonaModificada && zonaModificada.cantidad <= 0) {
-            inmuebleActualizado = await Properties.findByIdAndUpdate(
-                req.params.id,
-                { $pull: { zonas: { nombreZona: nombreZona } } }, // Remueve el objeto del catálogo por completo
-                { new: true }
-            );
-        }
-
-        res.json({ mensaje: "Área eliminada y catálogo de zonas optimizado", inmuebleActualizado });
-    } catch (err) { next(err) }
-});
-
-
-
-// DELETE eliminar inmueble — Convención REST limpia sin la palabra '/eliminar'
-router.delete('/:id', verificarToken, verificarPublicante, verificarDuenio(Properties), async (req, res, next) => {
-    try {
-        const eliminado = req.recurso;
-        await eliminado.deleteOne();
-        logger.warn(`Propiedad ELIMINADA. ID: ${eliminado._id} - Borrada por usuario: ${req.usuario.id}`);
-        res.json({ mensaje: 'Inmueble eliminado correctamente', eliminado });
-    } catch (err) {
-        next(err)
-    }
-});
-
-
-
-
+router.delete('/:id', 
+    verificarToken, 
+    verificarPublicante, 
+    verificarDuenio(Properties), 
+    deleteProperty
+);
 
 export default router;

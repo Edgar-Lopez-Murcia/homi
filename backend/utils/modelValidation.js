@@ -1,14 +1,9 @@
-import logger from '../utils/logger.js'; // Ajustamos la ruta del import
+import logger from '../utils/logger.js';
 
 export const validarSchema = (schema) => {
     return (req, res, next) => {
-        const datosParaValidar = {
-            ...req.body,
-            ...req.params,
-            ...req.query
-        };
-
-        const resultado = schema.safeParse(datosParaValidar);
+        
+        const resultado = schema.safeParse(req.body);
         
         if (!resultado.success) {
             const listaDeErrores = resultado.error.issues.map(issue => ({
@@ -25,17 +20,11 @@ export const validarSchema = (schema) => {
             });
         }
         
-        const llavesBody = Object.keys(req.body);
-        if (llavesBody.length > 0) {
-            req.body = Object.fromEntries(
-                Object.entries(resultado.data).filter(([key]) => llavesBody.includes(key))
-            );
-        }
+        req.body = resultado.data;
 
         next();
     };
 };
 
 
-export default validarConZod;
 
